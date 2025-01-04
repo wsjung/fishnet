@@ -38,7 +38,7 @@ setup(
 	"matplotlib==3.5.2",
 	"sortedcontainers==2.4.0",
 	"tqdm==4.64.0",
-	"numpy==1.19.2",
+	"numpy==1.20.3",
     "pandas<1.4.3",
 	"scipy==1.6.2",
 	"seaborn<=0.11.0",

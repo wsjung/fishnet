@@ -1,24 +1,30 @@
 import subprocess
 import argparse
+import pandas as pd
 import sys
 
 def run_nextflow(trait, input_file, module_dir_path):
+
+    pval_file = pd.read_csv(input_file, sep=",")
+    num_tests = pval_file.shape[0]
 
     params = [
         "--trait", trait,
         "--moduleFileDir", module_dir_path,
         "--geneColName", "Genes",
         "--pvalColName", "p_vals",
-        "--numTests",
-        "--pipeline","maleWC",
+        "--numTests", str(num_tests),
+        "--pipeline","test",
         "--pvalFileName", input_file
     ]
 
-    subprocess.run(["nextflow", "run", "/app/scripts/mea_slurm_or_kb.nf"] + params, check=True)
+    print(["nextflow", "run", "/app/scripts/scripts_nf/mea_slurm_or_kb.nf"] + params)
+
+    subprocess.run(["nextflow", "run", "/app/scripts/scripts_nf/mea_slurm_or_kb.nf"] + params, check=True)
 
 def run_test():
     trait = "maleWC"
-    trait_file_path = "/app/test/maleWC.csv"
+    trait_file_path = "/app/test/0-maleWC.csv"
     module_dir_path = "/app/test/ker_based/"
     run_nextflow(trait, trait_file_path, module_dir_path)
 

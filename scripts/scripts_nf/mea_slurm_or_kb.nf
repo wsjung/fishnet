@@ -21,7 +21,7 @@ process PreProcessForPascal{
 
     script:
     """
-    python3 /app/scripts/preProcessForPascal.py \
+    python3 /app/scripts/scripts_nf/preProcessForPascal.py \
         ${pvalFile} \
         ${params.moduleFileDir} \
         "pascalInput/" \
@@ -48,7 +48,7 @@ process RunPascal{
 
     script:
     """
-    python3 /app/scripts/runPascal.py \
+    python3 /app/scripts/scripts_nf/runPascal.py \
         ${geneScoreFile} \
         ${moduleFile} \
         "pascalOutput/" \
@@ -59,7 +59,7 @@ process RunPascal{
 }
 
 process ProcessPascalOutput{
-    container 'mea_latest.sif'
+    //container 'mea_latest.sif'
     label "process_low"
 
     input:
@@ -73,18 +73,18 @@ process ProcessPascalOutput{
     path(goFile)
 
     """
-    python3 /app/scripts/processPascalOutput.py \
+    python3 /app/scripts/scripts_nf/processPascalOutput.py \
         ${pascalOutputFile} \
         0.05 \
         "masterSummaryPiece/" \
         ${geneScoreFilePascalInput} \
         "significantModules/" \
-	${params.numTests}
+        ${params.numTests}
     """
 }
 
 process GoAnalysis{
-    container 'webgestalt_latest.sif'
+    //container 'webgestalt_latest.sif'
     publishDir ".", pattern: "GO_summaries/${params.trait}/*", mode: 'copy' // copy ORA results to current location.
     label "process_low"
 
@@ -101,14 +101,14 @@ process GoAnalysis{
     script:
     def oraSummaryDir = "GO_summaries/${params.trait}/GO_summaries_${goFile.baseName.split('_')[2]}_${goFile.baseName.split('_')[3]}/"
     """
-    Rscript /app/scripts/ORA_cmd.R --sigModuleDir ${sigModuleDir} --backGroundGenesFile ${goFile} \
+    Rscript /app/scripts/scripts_nf/ORA_cmd.R --sigModuleDir ${sigModuleDir} --backGroundGenesFile ${goFile} \
         --summaryRoot "${oraSummaryDir}" --reportRoot "GO_reports/"
 
     """
 }
 
 process MergeORAsummaryAndMasterSummary{
-    container 'mea_latest.sif'
+    //container 'mea_latest.sif'
     label "process_low"
     publishDir "./masterSummaries/", mode: 'copy'
     input:
@@ -120,7 +120,7 @@ process MergeORAsummaryAndMasterSummary{
     path("summaries/*")
 
     """
-    python3 /app/scripts/mergeORAandSummary.py \
+    python3 /app/scripts/scripts_nf/mergeORAandSummary.py \
         ${masterSummaryPiece} \
         ${oraSummaryDir} \
         "summaries/" \
@@ -134,7 +134,7 @@ workflow {
     // For each module file in the module directory, preprocess the data for pascal.
     preProcessedFiles = PreProcessForPascal(params.pvalFileName)
     pascalOut = RunPascal(preProcessedFiles[0]|flatten, preProcessedFiles[1]|flatten, preProcessedFiles[2]|flatten)
-    //processedPascalOutput = ProcessPascalOutput(pascalOut[0]|flatten, pascalOut[1]|flatten, pascalOut[2]|flatten)
-    //goAnalysisOut = GoAnalysis(processedPascalOutput[0]|flatten, processedPascalOutput[1]|flatten, processedPascalOutput[2]|flatten)
-    //horizontallyMergedOut = MergeORAsummaryAndMasterSummary(goAnalysisOut[0]|flatten, goAnalysisOut[1]|flatten, goAnalysisOut[2]|flatten)
+    processedPascalOutput = ProcessPascalOutput(pascalOut[0]|flatten, pascalOut[1]|flatten, pascalOut[2]|flatten)
+    goAnalysisOut = GoAnalysis(processedPascalOutput[0]|flatten, processedPascalOutput[1]|flatten, processedPascalOutput[2]|flatten)
+    horizontallyMergedOut = MergeORAsummaryAndMasterSummary(goAnalysisOut[0]|flatten, goAnalysisOut[1]|flatten, goAnalysisOut[2]|flatten)
 }
