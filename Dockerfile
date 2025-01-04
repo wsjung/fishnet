@@ -45,4 +45,6 @@ RUN curl -s https://get.nextflow.io | bash && mv nextflow /usr/local/bin/
 
 ADD scripts /app/scripts/
 
+WORKDIR /app
+
 ENTRYPOINT ["python3", "/app/scripts/main.py", "--test"]

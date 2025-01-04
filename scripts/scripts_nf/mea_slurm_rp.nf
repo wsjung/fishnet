@@ -1,18 +1,31 @@
 nextflow.enable.dsl=2
-
-// params.pvalFileName = '' // Placeholder for the command-line argument
+params.geneColName = 'Genes'
+params.pvalColName = 'p_vals'
 
 // FIX BELOW PARAMS BEFORE RUNNING IT -> Now, sbatch script takes "trait" and "numTests" then pass it here. 
-// pvalFilenName is made in the sbatch script, so it is REQUIRED that the gene score file's basename matches trait
+// pvalFilenName is made in the csbatch script, so it is REQUIRED that the gene score file's basename matches trait
 // params.pipeline = "cmaRPLLFS"
 
+process RandomPermutation {
+    //container 'mea_latest.sif'
+    publishDir "./results/", mode: 'copy'
+    label "process_low"
+
+    output:
+    path("RPscores/${params.trait}/*.csv")
+
+    script:
+    """
+    python3 /app/scripts/scripts_nf/randomPermutation.py ${params.pvalFileName} "RPscores/${params.trait}/" ${params.geneColName} ${params.numRP}
+    """
+}
 
 process PreProcessForPascal{
     //container 'mea_latest.sif'
     label "process_low"
 
     input:
-    path pvalFile // Change this line to accept a path
+    path(geneScoreFile)
 
     output:
     path("pascalInput/GS_*")
@@ -22,7 +35,7 @@ process PreProcessForPascal{
     script:
     """
     python3 /app/scripts/scripts_nf/preProcessForPascal.py \
-        ${pvalFile} \
+        ${geneScoreFile} \
         ${params.moduleFileDir} \
         "pascalInput/" \
         ${params.pipeline} \
@@ -79,13 +92,13 @@ process ProcessPascalOutput{
         "masterSummaryPiece/" \
         ${geneScoreFilePascalInput} \
         "significantModules/" \
-        ${params.numTests}
+	${params.numTests}
     """
 }
 
 process GoAnalysis{
     //container 'webgestalt_latest.sif'
-    publishDir "./results/", pattern: "GO_summaries/${params.trait}/*", mode: 'copy' // copy ORA results to current location.
+    publishDir "./results/", pattern: "GO_summaries_RP/${params.trait}/*", mode: 'copy' // copy ORA results to current location.
     label "process_low"
 
     input:
@@ -95,11 +108,11 @@ process GoAnalysis{
 
     output:
     path(masterSummarySlice)
-    path("GO_summaries/${params.trait}/GO_summaries_${goFile.baseName.split('_')[2]}_${goFile.baseName.split('_')[3]}/")
+    path("GO_summaries_RP/${params.trait}/GO_summaries_${goFile.baseName.split('_')[2]}_${goFile.baseName.split('_')[3]}/")
     path(goFile)
 
     script:
-    def oraSummaryDir = "GO_summaries/${params.trait}/GO_summaries_${goFile.baseName.split('_')[2]}_${goFile.baseName.split('_')[3]}/"
+    def oraSummaryDir = "GO_summaries_RP/${params.trait}/GO_summaries_${goFile.baseName.split('_')[2]}_${goFile.baseName.split('_')[3]}/"
     """
     Rscript /app/scripts/scripts_nf/ORA_cmd.R --sigModuleDir ${sigModuleDir} --backGroundGenesFile ${goFile} \
         --summaryRoot "${oraSummaryDir}" --reportRoot "GO_reports/"
@@ -110,7 +123,7 @@ process GoAnalysis{
 process MergeORAsummaryAndMasterSummary{
     //container 'mea_latest.sif'
     label "process_low"
-    publishDir "./results//masterSummaries/", mode: 'copy'
+    publishDir "./results/masterSummaries_RP/", mode: 'copy'
     input:
     path(masterSummaryPiece)
     path(oraSummaryDir)
@@ -130,9 +143,8 @@ process MergeORAsummaryAndMasterSummary{
 }
 
 workflow {
-    print(params)
     // For each module file in the module directory, preprocess the data for pascal.
-    preProcessedFiles = PreProcessForPascal(params.pvalFileName)
+    preProcessedFiles = PreProcessForPascal(RandomPermutation()|flatten)
     pascalOut = RunPascal(preProcessedFiles[0]|flatten, preProcessedFiles[1]|flatten, preProcessedFiles[2]|flatten)
     processedPascalOutput = ProcessPascalOutput(pascalOut[0]|flatten, pascalOut[1]|flatten, pascalOut[2]|flatten)
     goAnalysisOut = GoAnalysis(processedPascalOutput[0]|flatten, processedPascalOutput[1]|flatten, processedPascalOutput[2]|flatten)
