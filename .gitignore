@@ -4,3 +4,6 @@ work/
 GO_summaries
 masterSummaries
 results/
+*.sif
+*.sbatch
+logs/
