@@ -9,7 +9,7 @@ def get_csv_files(dirPath):
     """Return a list of all csv files in the given directory path."""
     return [os.path.join(dirPath, filename) for filename in os.listdir(dirPath) if filename.endswith('.csv')]
 
-def concatenate_csv(dirPath, identifier:str):
+def concatenate_csv(dirPath, identifier:str, output_dir="."):
     # List all CSV files in the given directory
     file_paths = get_csv_files(dirPath)
 
@@ -26,7 +26,7 @@ def concatenate_csv(dirPath, identifier:str):
     outputFileName = f"master_summary_{identifier}.csv"
 
     # Save the concatenated data frame to an output CSV file
-    concatenated_df.to_csv(f"{outputFileName}", index=False)
+    concatenated_df.to_csv(os.path.join(output_dir, f"{outputFileName}"), index=False)
 
 if __name__ == "__main__":
     # Argument parsing

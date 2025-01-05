@@ -2,18 +2,27 @@ import subprocess
 import argparse
 import pandas as pd
 import sys
+import os
 
 from dc_rp_genes import dc_rp_genes
+from verticalMerge import concatenate_csv
 
 def nextflow_cleanup():
     """This function cleans up the nextflow work directory and logs"""
-
+    import glob
+    import shutil
     print("cleaning up nextflow logs and work/")
 
     # clean up work/
     subprocess.run(["nextflow", "clean", "-f"])
     # delete nextflow log files
-    subprocess.run(["rm", "-rf", ".nextflow/", ".nextflow.log*", "work/"])
+    #subprocess.run(["rm", "-rf", ".nextflow/", ".nextflow.log*", "work/"])
+
+    rm_files_list = glob.glob(".nextflow.log*")
+    for f in rm_files_list:
+        os.remove(f)
+    shutil.rmtree(".nextflow/")
+    shutil.rmtree("work/")
 
     print("done")
 
@@ -113,16 +122,44 @@ def run_nextflow_mea_random_permutation(trait, input_file, module_dir_path,
     if not debug:
         nextflow_cleanup()
 
+def compile_results(dir_path, trait, output_dir):
+    """This function compiles the nextflow results"""
+    concatenate_csv(dir_path, trait, output_dir)
+
+def organize_results(trait, results_dir):
+    """This function organizes the nextflow results for phase 2"""
+    subprocess.run(["sh", "/app/scripts/organize_results.sh", trait,
+                    results_dir])
+
 
 def run_test(debug):
     trait = "maleWC"
-    trait_file_path = "/app/test/0-maleWC.csv"
+    trait_file_path = "/app/test/maleWC/0-maleWC.csv"
     module_dir_path = "/app/test/ker_based/"
     num_permutations = 3
-    #run_nexflow_mea_original(trait, trait_file_path, module_dir_path, debug)
+    results_dir = "/app/results/"
+    original_summaries = os.path.join(results_dir,
+                                      "masterSummaries/summaries/")
+    permutation_summaries = os.path.join(results_dir,
+                                         "masterSummaries_RP/summaries/")
+
+    # original nextflow run
+    run_nexflow_mea_original(trait, trait_file_path, module_dir_path, debug)
+    # compile original results
+    compile_results(original_summaries, trait, results_dir)
+
+    # generate pvals
     trait_RR_file_path = generate_uniformly_distributed_pvals(trait_file_path)
+
+    # permuted nextflow runs
     run_nextflow_mea_random_permutation(trait, trait_RR_file_path,
                                         module_dir_path, num_permutations, debug)
+    # compile permuted results
+    compile_results(permutation_summaries, trait+"RR", results_dir)
+
+    # organize rsults
+    organize_results(trait, results_dir)
+
 
 
 def main():
