@@ -32,8 +32,9 @@ RUN R -e "install.packages('BiocManager', repos='http://cran.rstudio.com/')" \
     && R -e "BiocManager::install(c('WebGestaltR','stringr','optparse'))"
 
 # Install Python packages
+RUN pip3 install --upgrade pip
 RUN pip3 install "pillow>=6.2.0,<=9.0.0" "matplotlib==3.5.0"
-RUN pip3 install "pybind11" "numpy==1.20.3" "jupyter" "statsmodels"
+RUN pip3 install "pybind11" "numpy==1.20.3" "pandas==2.0.3" "jupyter" "statsmodels"
 
 # Install PascalX dependencies
 RUN mkdir -p /PascalX/build/lib && echo "/PascalX/build/lib" > /etc/ld.so.conf.d/pascalx.conf
@@ -47,4 +48,4 @@ ADD scripts /app/scripts/
 
 WORKDIR /app
 
-ENTRYPOINT ["python3", "/app/scripts/main.py", "--test"]
+ENTRYPOINT ["python3", "/app/scripts/main.py"]
