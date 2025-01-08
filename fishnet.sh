@@ -14,6 +14,12 @@ pvalColName="p_vals"
 bonferroni_alpha="0.05"
 output_dir=$( readlink -f ./results/ )
 
+### list of containers ###
+# contains all python dependencies for fishnet
+#   TODO: create single container with all python dependencies (include statsmodels)
+#   TODO: add to biocontainers 
+container_python="jungwooseok/dc_rp_genes:1.0"
+
 ###############
 ### PHASE 1 ###
 ###############
@@ -34,10 +40,6 @@ nextflow run ./scripts/phase1/nextflow/main.nf \
 # (2) generate uniform p-values
 echo "generating uniformly distributed p-values"
 genes_filepath="/app/${pvalFileName#$(pwd)}"
-# contains all python dependencies for fishnet
-# TODO: create single container with all python dependencies (include statsmodels)
-# TODO: add to biocontainers 
-container_python="jungwooseok/dc_rp_genes:1.0"
 docker run -i --rm -v $(pwd):/app -u $(id -u):$(id -g) $container_python  /bin/bash -c \
     "python3 /app/scripts/phase1/generate_uniform_pvals.py \
        --genes_filepath $genes_filepath"
@@ -78,11 +80,37 @@ docker run -i --rm -v $(pwd):/app -u $(id -u):$(id -g) $container_python /bin/ba
 summaries_path_permutation="${results_path}/masterSummaries_RP/summaries/"
 docker run -i --rm -v $(pwd):/app -u $(id -u):$(id -g) $container_python /bin/bash -c \
     "python3 /app/scripts/phase1/compile_results.py \
-        --dirPath $summaries_path_permutation\
-        --identifier $trait \
+        --dirPath $summaries_path_permutation \
+        --identifier ${trait}RR \
         --output $results_path"
 echo "done"
 
+# (5) organize phase 1 results
+echo "restructuring phase 1 results for input to phase 2"
+# TODO: consider defining shell functions in separate file
+# function to organize phase 1 nextflow pipeline results
+organize_nextflow_results() {
+    trait=$1
+    results_dir=$2
+    traitRR="${trait}RR"
+
+    # create outer trait directories
+    trait_dir="${results_dir}/${trait}/"
+    traitRR_dir="${results_dir}/${traitRR}/"
+    mkdir -p $trait_dir $traitRR_dir
+
+    # move over original results
+    mv "${results_dir}/GO_summaries" ${trait_dir}
+    mv "${results_dir}/masterSummaries" ${trait_dir}
+    mv "${results_dir}/master_summary_${trait}.csv" ${trait_dir}/master_summary.csv
+
+    # 3. move over permutation results
+    mv "${results_dir}/GO_summaries_RP" "${traitRR_dir}/GO_summaries"
+    mv "${results_dir}/masterSummaries_RP" "${traitRR_dir}/masterSummaries"
+    mv "${results_dir}/master_summary_${traitRR}.csv" ${traitRR_dir}/master_summary.csv
+}
+organize_nextflow_results $trait $output_dir
+echo "done"
 
 
 
