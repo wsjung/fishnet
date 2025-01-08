@@ -14,6 +14,12 @@ pvalColName="p_vals"
 bonferroni_alpha="0.05"
 output_dir=$( readlink -f ./results/ )
 
+### list of containers ###
+# contains all python dependencies for fishnet
+#   TODO: create single container with all python dependencies (include statsmodels)
+#   TODO: add to biocontainers 
+container_python="jungwooseok/dc_rp_genes:1.0"
+
 ###############
 ### PHASE 1 ###
 ###############
@@ -34,10 +40,6 @@ nextflow run ./scripts/phase1/nextflow/main.nf \
 # (2) generate uniform p-values
 echo "generating uniformly distributed p-values"
 genes_filepath="/app/${pvalFileName#$(pwd)}"
-# contains all python dependencies for fishnet
-# TODO: create single container with all python dependencies (include statsmodels)
-# TODO: add to biocontainers 
-container_python="jungwooseok/dc_rp_genes:1.0"
 docker run -i --rm -v $(pwd):/app -u $(id -u):$(id -g) $container_python  /bin/bash -c \
     "python3 /app/scripts/phase1/generate_uniform_pvals.py \
        --genes_filepath $genes_filepath"
@@ -78,8 +80,8 @@ docker run -i --rm -v $(pwd):/app -u $(id -u):$(id -g) $container_python /bin/ba
 summaries_path_permutation="${results_path}/masterSummaries_RP/summaries/"
 docker run -i --rm -v $(pwd):/app -u $(id -u):$(id -g) $container_python /bin/bash -c \
     "python3 /app/scripts/phase1/compile_results.py \
-        --dirPath $summaries_path_permutation\
-        --identifier $trait \
+        --dirPath $summaries_path_permutation \
+        --identifier ${trait}RR \
         --output $results_path"
 echo "done"
 
