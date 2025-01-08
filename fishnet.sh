@@ -112,6 +112,13 @@ organize_nextflow_results() {
 organize_nextflow_results $trait $output_dir
 echo "done"
 
+# (0) TODO: filter the summary file for original/permuted runs
+#   - filter for 'True' in master_summary.csv -> master_summary_filtered.csv
+#   - subset columns of master_summary_filtered.csv -> master_summary_filtered_parsed.csv
+( head -n 1 "${output_dir}/${trait}/master_summary.csv"; grep 'True' "${output_dir}/${trait}/master_summary.csv" ) > "${output_dir}/${trait}/master_summary_filtered.csv"
+cut -d ',' -f 1-8 "${output_dir}/${trait}/master_summary_filtered.csv" > "${output_dir}/${trait}/master_summary_filtered_parsed.csv"
 
+( head -n 1 "${output_dir}/${trait}RR/master_summary.csv"; grep 'True' "${output_dir}/${trait}RR/master_summary.csv" ) > "${output_dir}/${trait}RR/master_summary_filtered.csv"
+cut -d ',' -f 1-8 "${output_dir}/${trait}RR/master_summary_filtered.csv" > "${output_dir}/${trait}RR/master_summary_filtered_parsed.csv"
 
 
