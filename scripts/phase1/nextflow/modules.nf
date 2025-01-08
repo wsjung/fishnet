@@ -13,7 +13,7 @@ process RANDOM_PERMUTATION {
 
     script:
     """
-    python3 ${projectDir}/randomPermutation.py \
+    python3 ${projectDir}/bin/randomPermutation.py \
         ${params.pvalFileName} \
         "RPscores/${params.trait}/" \
         ${params.geneColName} \
@@ -112,7 +112,7 @@ process POSTPROCESS_PASCAL_OUTPUT {
 process GO_ANALYSIS {
 
     container 'jungwooseok/r-webgestaltr:1.0' // TODO: add to biocontainers
-    publishDir "./results/", pattern: "GO_summaries/${params.trait}/*", mode: 'copy' // copy ORA results to current location.
+    publishDir "./results/", pattern: "${params.GO_summaries_path}/${params.trait}/*", mode: 'copy' // copy ORA results to current location.
     label "process_low"
 
     input:
@@ -122,11 +122,11 @@ process GO_ANALYSIS {
 
     output:
     path(masterSummarySlice),   emit: mastersummaryslice
-    path("GO_summaries/${params.trait}/GO_summaries_${goFile.baseName.split('_')[2]}_${goFile.baseName.split('_')[3]}/"),   emit: gosummaries
+    path("${params.GO_summaries_path}/${params.trait}/GO_summaries_${goFile.baseName.split('_')[2]}_${goFile.baseName.split('_')[3]}/"),   emit: gosummaries
     path(goFile),               emit: gofile
 
     script:
-    def oraSummaryDir = "GO_summaries/${params.trait}/GO_summaries_${goFile.baseName.split('_')[2]}_${goFile.baseName.split('_')[3]}/"
+    def oraSummaryDir = "${params.GO_summaries_path}/${params.trait}/GO_summaries_${goFile.baseName.split('_')[2]}_${goFile.baseName.split('_')[3]}/"
     """
     Rscript ${projectDir}/bin/ORA_cmd.R --sigModuleDir ${sigModuleDir} --backGroundGenesFile ${goFile} \
         --summaryRoot "${oraSummaryDir}" --reportRoot "GO_reports/"
@@ -140,7 +140,7 @@ process MERGE_RESULTS {
         'https://depot.galaxyproject.org/singularity/pandas:1.1.5' :
         'quay.io/biocontainers/pandas:1.1.5' }"
     label "process_low"
-    publishDir "./results//masterSummaries/", mode: 'copy'
+    publishDir "./results/${params.masterSummaries_path}/", mode: 'copy'
 
     input:
     path(masterSummaryPiece)

@@ -3,7 +3,8 @@ work/
 .nextflow*
 GO_summaries
 masterSummaries
-results/
+results*/
 *.sif
 *.sbatch
 logs/
+test/maleWCRR

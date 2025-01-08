@@ -56,11 +56,15 @@ workflow WORKFLOW_ORIGINAL_RUN {
 
 workflow WORKFLOW_RANDOM_RUN {
 
-    ch_random_permutation = RANDOM_PERMUTATION ()
+    RANDOM_PERMUTATION ()
 
-    ch_preprocess = PREPROCESS_FOR_PASCAL (
-        ch_random_permutation.out.rp_scores | flatten
+    PREPROCESS_FOR_PASCAL (
+        RANDOM_PERMUTATION.out.rp_scores | flatten
     )
 
-    ch_results_permutation = SUBWORKFLOW_MODULE_ENRICHMENT(ch_preprocess)
+    SUBWORKFLOW_MODULE_ENRICHMENT (
+        PREPROCESS_FOR_PASCAL.out.gs,
+        PREPROCESS_FOR_PASCAL.out.module,
+        PREPROCESS_FOR_PASCAL.out.go
+    )
 }
