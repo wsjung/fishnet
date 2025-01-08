@@ -2,8 +2,13 @@
 nextflow.enable.dsl=2
 
 
-include { PREPROCESS_FOR_PASCAL } from './modules.nf'
+include { WORKFLOW_ORIGINAL_RUN } from './subworkflows.nf'
+include { WORKFLOW_RANDOM_RUN } from './subworkflows.nf'
 
 workflow {
-    PREPROCESS_FOR_PASCAL(params.pvalFileName)
+    if (params.random_permutation) {
+        WORKFLOW_RANDOM_RUN()
+    } else {
+        WORKFLOW_ORIGINAL_RUN()
+    }
 }
