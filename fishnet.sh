@@ -63,6 +63,25 @@ nextflow run ./scripts/phase1/nextflow/main.nf \
     --masterSummaries_path "masterSummaries_RP" \
     -c conf/fishnet.config \
 
+# (4) compile results
+# (4.1) original
+echo "compiling results"
+results_path="/app/${output_dir#$(pwd)}"
+summaries_path_original="${results_path}/masterSummaries/summaries/"
+docker run -i --rm -v $(pwd):/app -u $(id -u):$(id -g) $container_python /bin/bash -c \
+    "python3 /app/scripts/phase1/compile_results.py \
+        --dirPath $summaries_path_original \
+        --identifier $trait \
+        --output $results_path"
+
+# (4.2) random permutation
+summaries_path_permutation="${results_path}/masterSummaries_RP/summaries/"
+docker run -i --rm -v $(pwd):/app -u $(id -u):$(id -g) $container_python /bin/bash -c \
+    "python3 /app/scripts/phase1/compile_results.py \
+        --dirPath $summaries_path_permutation\
+        --identifier $trait \
+        --output $results_path"
+echo "done"
 
 
 
