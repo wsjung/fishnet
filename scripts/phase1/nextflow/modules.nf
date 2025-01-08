@@ -13,7 +13,7 @@ process RANDOM_PERMUTATION {
 
     script:
     """
-    python3 ${projectDir}/randomPermutation.py \
+    python3 ${projectDir}/bin/randomPermutation.py \
         ${params.pvalFileName} \
         "RPscores/${params.trait}/" \
         ${params.geneColName} \
