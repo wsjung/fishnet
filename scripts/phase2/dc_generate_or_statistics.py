@@ -8,7 +8,7 @@ import math
 
 def generate_or_statistics(gene_set_path, master_summary_path, trait, module_path, go_path, study, output_path, network ):
 
-    print("Started")
+    #print("Started")
     final_df = pd.DataFrame(columns = ["threshold", "mea_passing_genes", "fraction_mea_passing_genes"])
     mea_passing_genes_df = pd.DataFrame(columns = ["threshold", "mea_passing_genes"])
 
@@ -73,7 +73,7 @@ def generate_or_statistics(gene_set_path, master_summary_path, trait, module_pat
     final_df.to_csv(os.path.join(output_path, f"{network}_{trait}_{network}_or_summary.csv"), index = None)
     mea_passing_genes_df.to_csv(os.path.join(output_path, f"{network}_{trait}_{network}_or_fishnet_genes.csv"), index = None)
 
-    print("Completed")
+    #print("Completed")
 
 def extract_module_genes_by_index(module_df, index):
     genes_row = module_df.loc[index].dropna().tolist()
