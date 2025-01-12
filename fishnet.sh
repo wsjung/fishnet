@@ -24,6 +24,11 @@ container_python="jungwooseok/dc_rp_genes:1.0"
 ################
 #### PHASE 1 ###
 ################
+#echo "
+################
+#### PHASE 2 ###
+################
+#"
 ## (1) nextflow original run
 #echo "executing Nextflow MEA pipeline on original run"
 #nextflow run ./scripts/phase1/nextflow/main.nf \
@@ -117,6 +122,11 @@ container_python="jungwooseok/dc_rp_genes:1.0"
 ###############
 ### PHASE 2 ###
 ###############
+echo "
+###############
+### PHASE 2 ###
+###############
+"
 # (0) TODO: filter the summary file for original/permuted runs
 #   - filter for 'True' in master_summary.csv -> master_summary_filtered.csv
 #   - subset columns of master_summary_filtered.csv -> master_summary_filtered_parsed.csv
@@ -145,3 +155,15 @@ do
             --network $network"
 done
 
+# (2) generate statistics for permutation run
+# TODO: rewrite in nextflow(?) for parallelism
+# (2.1) TODO: prepare file with threshold:network pairs
+
+threshold_network_pairs=$( readlink -f ./test/slurm_thresholds_maleWC.txt )
+threshold_network_pairs_path="/app/${threshold_network_pairs#(pwd)}"
+# (2.2) generate statistics for permutation run
+
+
+
+
+echo "### FISHNET COMPLETE ###"
