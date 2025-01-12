@@ -314,70 +314,70 @@ if [ "$TEST_MODE" = true ]; then
 ## ALTERNATIVE THRESHOLDING ##
 ##############################
             "
-            ## (1) generate background gene sets for GO analysis
-            #echo "# STEP 1: generating background gene sets for GO analysis"
-            #docker run --rm -v $(pwd):$(pwd) -w $(pwd) -u $(id -u):$(id -g) $container_python /bin/bash -c \
-            #    "python3 ./scripts/phase2/dc_fishnet_background_genes.py \
-            #        --genes_filepath $pvalFileNameRR \
-            #        --module_filepath $moduleFileDir \
-            #        --output_filepath ${output_dir}/${trait}/"
+            # (1) generate background gene sets for GO analysis
+            echo "# STEP 1: generating background gene sets for GO analysis"
+            docker run --rm -v $(pwd):$(pwd) -w $(pwd) -u $(id -u):$(id -g) $container_python /bin/bash -c \
+                "python3 ./scripts/phase2/dc_fishnet_background_genes.py \
+                    --genes_filepath $pvalFileNameRR \
+                    --module_filepath $moduleFileDir \
+                    --output_filepath ${output_dir}/${trait}/"
 
-            ## (1.1) copy background genes to permutation directory
-            #cp -r ${output_dir}/${trait}/background_genes/ ${output_dir}/${traitRR}/
+            # (1.1) copy background genes to permutation directory
+            cp -r ${output_dir}/${trait}/background_genes/ ${output_dir}/${traitRR}/
 
-            ## (2) Extract and save module genes as individual files for modules that satisfy Bonferroni 0.25
-            #echo "# STEP 2: extract and save modules that satisfy Bonferroni threshold"
-            ## (2.1) original run
-            #echo " - original run"
-            #docker run --rm -v $(pwd):$(pwd) -w $(pwd) -u $(id -u):$(id -g) $container_python /bin/bash -c \
-            #    "python3 ./scripts/phase2/dc_fishnet_module_genes.py \
-            #        --genes_filepath $pvalFileNameRR \
-            #        --module_filepath $moduleFileDir \
-            #        --master_summary_path ${output_dir}/${trait}/ \
-            #        --study $trait"
-            ## (2.1) permutation run
-            #echo " - permutation run"
-            #docker run --rm -v $(pwd):$(pwd) -w $(pwd) -u $(id -u):$(id -g) $container_python /bin/bash -c \
-            #    "python3 ./scripts/phase2/dc_fishnet_module_genes.py \
-            #        --genes_filepath $pvalFileNameRR \
-            #        --module_filepath $moduleFileDir \
-            #        --master_summary_path ${output_dir}/${traitRR}/ \
-            #        --study $traitRR"
+            # (2) Extract and save module genes as individual files for modules that satisfy Bonferroni 0.25
+            echo "# STEP 2: extract and save modules that satisfy Bonferroni threshold"
+            # (2.1) original run
+            echo " - original run"
+            docker run --rm -v $(pwd):$(pwd) -w $(pwd) -u $(id -u):$(id -g) $container_python /bin/bash -c \
+                "python3 ./scripts/phase2/dc_fishnet_module_genes.py \
+                    --genes_filepath $pvalFileNameRR \
+                    --module_filepath $moduleFileDir \
+                    --master_summary_path ${output_dir}/${trait}/ \
+                    --study $trait"
+            # (2.1) permutation run
+            echo " - permutation run"
+            docker run --rm -v $(pwd):$(pwd) -w $(pwd) -u $(id -u):$(id -g) $container_python /bin/bash -c \
+                "python3 ./scripts/phase2/dc_fishnet_module_genes.py \
+                    --genes_filepath $pvalFileNameRR \
+                    --module_filepath $moduleFileDir \
+                    --master_summary_path ${output_dir}/${traitRR}/ \
+                    --study $traitRR"
 
-            ## (3) Run GO analysis
-            #echo "# STEP 3: running GO analysis"
-            ## (3.1) original run
-            #echo " - original run"
-            #set +e
-            #for network in `ls ${moduleFileDir}/`;
-            #do
-            #    echo "Network: $network"
-            #    network="${network%.*}" # remove extension
-            #    docker run --rm -v $(pwd):$(pwd) -w $(pwd) -u $(id -u):$(id -g) $container_R /bin/bash -c \
-            #        "Rscript ./scripts/phase2/dc_ORA_cmd.R \
-            #            --sigModuleDir ${output_dir}/${trait}/enriched_modules/${trait}-${network}/ \
-            #            --backGroundGenesFile ${output_dir}/${trait}/background_genes/${module_algo}-${network}.txt \
-            #            --summaryRoot ${output_dir}/${trait}/GO_summaries_alternate/ \
-            #            --reportRoot ${output_dir}/${trait}/report_sumamries_alternate/"
+            # (3) Run GO analysis
+            echo "# STEP 3: running GO analysis"
+            # (3.1) original run
+            echo " - original run"
+            set +e
+            for network in `ls ${moduleFileDir}/`;
+            do
+                echo "Network: $network"
+                network="${network%.*}" # remove extension
+                docker run --rm -v $(pwd):$(pwd) -w $(pwd) -u $(id -u):$(id -g) $container_R /bin/bash -c \
+                    "Rscript ./scripts/phase2/dc_ORA_cmd.R \
+                        --sigModuleDir ${output_dir}/${trait}/enriched_modules/${trait}-${network}/ \
+                        --backGroundGenesFile ${output_dir}/${trait}/background_genes/${module_algo}-${network}.txt \
+                        --summaryRoot ${output_dir}/${trait}/GO_summaries_alternate/ \
+                        --reportRoot ${output_dir}/${trait}/report_sumamries_alternate/"
 
-            #done
-            #set -e
-            ## (3.2) permutation run
-            #echo " - permutation run"
-            #set +e
-            #for network in `ls ${moduleFileDir}/`;
-            #do
-            #    echo "Network: $network"
-            #    network="${network%.*}" # remove extension
-            #    docker run --rm -v $(pwd):$(pwd) -w $(pwd) -u $(id -u):$(id -g) $container_R /bin/bash -c \
-            #        "Rscript ./scripts/phase2/dc_ORA_cmd.R \
-            #            --sigModuleDir ${output_dir}/${traitRR}/enriched_modules/${traitRR}-${network}/ \
-            #            --backGroundGenesFile ${output_dir}/${traitRR}/background_genes/${module_algo}-${network}.txt \
-            #            --summaryRoot ${output_dir}/${traitRR}/GO_summaries_alternate/ \
-            #            --reportRoot ${output_dir}/${traitRR}/report_sumamries_alternate/"
+            done
+            set -e
+            # (3.2) permutation run
+            echo " - permutation run"
+            set +e
+            for network in `ls ${moduleFileDir}/`;
+            do
+                echo "Network: $network"
+                network="${network%.*}" # remove extension
+                docker run --rm -v $(pwd):$(pwd) -w $(pwd) -u $(id -u):$(id -g) $container_R /bin/bash -c \
+                    "Rscript ./scripts/phase2/dc_ORA_cmd.R \
+                        --sigModuleDir ${output_dir}/${traitRR}/enriched_modules/${traitRR}-${network}/ \
+                        --backGroundGenesFile ${output_dir}/${traitRR}/background_genes/${module_algo}-${network}.txt \
+                        --summaryRoot ${output_dir}/${traitRR}/GO_summaries_alternate/ \
+                        --reportRoot ${output_dir}/${traitRR}/report_sumamries_alternate/"
 
-            #done
-            #set -e
+            done
+            set -e
 
             # (4) Generate statistics for original gene-level p-values
             echo "# STEP 4: generate statistics for original gene-level p-values"
@@ -396,6 +396,25 @@ if [ "$TEST_MODE" = true ]; then
                         --output_path ${output_dir}/${trait}/results/raw_alternate/ \
                         --network $network"
             done
+
+            # (5) Generate statistics for random permutation runs
+            echo "# STEP 5: generate statistics for random permutations"
+            # (5.1) TODO: prepare file with bonferroni p-value:network pairs
+            threshold_network_pairs_alternate=$( readlink -f ./test/slurm_thresholds_maleWC_alternate.txt )
+            while IFS=$'\t' read -r threshold network; do
+                echo "Threshold $threshold, Network: $network"
+                docker run --rm -v $(pwd):$(pwd) -w $(pwd) -u $(id -u):$(id -g) $container_python /bin/bash -c \
+                    "python3 ./scripts/phase2/dc_generate_rp_statistics_alternate.py \
+                        --gene_set_path ${output_dir}/RPscores/${traitRR}/ \
+                        --master_summary_path ${output_dir}/${traitRR}/master_summary_alternate.csv \
+                        --trait ${traitRR} \
+                        --module_path ${output_dir}/${traitRR}/enriched_modules/${traitRR}-${network}/ \
+                        --go_path ${output_dir}/${traitRR}/GO_summaries_alternate/ \
+                        --output_path ${output_dir}/${traitRR}/results/raw_alternate/ \
+                        --network $network \
+                        --threshold $threshold"
+            done < $threshold_network_pairs_alternate
+            echo "done"
         fi
     fi
 else
