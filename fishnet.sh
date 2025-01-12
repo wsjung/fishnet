@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/bash -ue
 
 ######################################
 # Master script for FISHNET pipeline #
@@ -16,6 +16,15 @@ Usage: fishnet.sh [options]
     --test
       Runs the test configuration
       Default: true
+    --skip-stage-1
+        Skips stage 1 of FISHNET
+        Default: false
+    --skip-stage-2
+        Skips stage 2 of FISHNET
+        Default: false
+    --thresholding_alternative
+        Configures stage 2 to run alternative thresholding mechanism
+        Default: false (runs default thresholding mechanism)
 EOF
 }
 
