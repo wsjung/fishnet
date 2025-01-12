@@ -321,17 +321,11 @@ if [ "$TEST_MODE" = true ]; then
                     --output_filepath ${output_dir}/${trait}/"
 
             # (1.1) copy background genes to permutation directory
-            cp ${output_dir}/${trait}/background_genes/ ${output_dir}/${traitRR}/
-
+            cp -r ${output_dir}/${trait}/background_genes/ ${output_dir}/${traitRR}/
 
         fi
     fi
-
-
-
-
-
-    echo "### FISHNET COMPLETE ###"
 else
-    exit 0
+    echo "FISHENT CURRENTLY ONLY SUPPORTS the --test FLAG"
 fi
+echo "### FISHNET COMPLETE ###"
