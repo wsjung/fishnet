@@ -20,6 +20,11 @@ EOF
 }
 
 TEST_MODE=false
+SKIP_STAGE_1=false
+SKIP_STAGE_2=false
+THRESHOLDING_MODE_DEFAULT="default"
+THRESHOLDING_MODE_ALTERNATIVE="alternative"
+THRESHOLDING_MODE=$THRESHOLDING_MODE_DEFAULT
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -31,6 +36,18 @@ while [[ $# -gt 0 ]]; do
             TEST_MODE=true
             shift
             ;;
+        --skip-stage-1)
+            SKIP_STAGE_1=true
+            shift
+            ;;
+        --skip-stage-2)
+            SKIP_STAGE_2=true
+            shift
+            ;;
+        --thresholding_alternative)
+            THRESHOLDING_MODE=$THRESHOLDING_MODE_ALTERNATIVE
+            shift
+            ;;
         *)
             echo "ERROR: Unknown option $1"
             usage
@@ -38,6 +55,12 @@ while [[ $# -gt 0 ]]; do
             ;;
     esac
 done
+
+# check if both stage skip flags have been set
+if [ "$SKIP_STAGE_1" = true ] && [ "$SKIP_STAGE_2" = true ]; then
+    echo "Both --skip-stage-1 and --skip-stage-2 provided. Nothing to do. Exiting."
+    exit 0
+fi
 
 if [ "$TEST_MODE" = true ]; then
 
