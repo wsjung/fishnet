@@ -217,83 +217,103 @@ if [ "$TEST_MODE" = true ]; then
 
         ( head -n 1 "${output_dir}/${traitRR}/master_summary.csv"; grep 'True' "${output_dir}/${traitRR}/master_summary.csv" ) > "${output_dir}/${traitRR}/master_summary_filtered.csv"
         cut -d ',' -f 1-8 "${output_dir}/${traitRR}/master_summary_filtered.csv" > "${output_dir}/${traitRR}/master_summary_filtered_parsed.csv"
+        
+        if [ "$THRESHOLDING_MODE" = "$THRESHOLDING_MODE_DEFAULT" ]; then
+            ##########################
+            ## DEFAULT THRESHOLDING ##
+            ##########################
+            echo "
+##########################
+## DEFAULT THRESHOLDING ##
+##########################
+            "
+            ## (1) generate statistics for original run
+            echo "# STEP 2.1: generating statistics for original run"
+            for network in `ls ${moduleFileDir}/`;
+            do
+                echo "Network: $network"
+                network="${network%.*}" # remove extension
+                docker run --rm -v $(pwd):$(pwd) -w $(pwd) -u $(id -u):$(id -g) $container_python /bin/bash -c \
+                    "python3 ./scripts/phase2/dc_generate_or_statistics.py \
+                        --gene_set_path $pvalFileDir \
+                        --master_summary_path ${output_dir}/${trait}/master_summary_filtered_parsed.csv \
+                        --trait $trait  \
+                        --module_path ${moduleFileDir}/${network}.txt \
+                        --go_path ${output_dir}/${trait}/GO_summaries/${trait}/ \
+                        --study $trait \
+                        --output_path ${output_dir}/${trait}/results/raw/ \
+                        --network $network"
+            done
+            echo "done"
 
-        ## (1) generate statistics for original run
-        echo "# STEP 2.1: generating statistics for original run"
-        for network in `ls ${moduleFileDir}/`;
-        do
-            echo "Network: $network"
-            network="${network%.*}" # remove extension
-            docker run --rm -v $(pwd):$(pwd) -w $(pwd) -u $(id -u):$(id -g) $container_python /bin/bash -c \
-                "python3 ./scripts/phase2/dc_generate_or_statistics.py \
-                    --gene_set_path $pvalFileDir \
-                    --master_summary_path ${output_dir}/${trait}/master_summary_filtered_parsed.csv \
-                    --trait $trait  \
-                    --module_path ${moduleFileDir}/${network}.txt \
-                    --go_path ${output_dir}/${trait}/GO_summaries/${trait}/ \
-                    --study $trait \
-                    --output_path ${output_dir}/${trait}/results/raw/ \
-                    --network $network"
-        done
-        echo "done"
+            # (2) generate statistics for permutation run
+            # TODO: rewrite in nextflow(?) for parallelism
+            # (2.1) TODO: prepare file with threshold:network pairs
 
-        # (2) generate statistics for permutation run
-        # TODO: rewrite in nextflow(?) for parallelism
-        # (2.1) TODO: prepare file with threshold:network pairs
+            # (2.2) generate statistics for permutation run
+            echo "# STEP 2.2: generating statistics for permutation runs"
+            genes_rpscores_filedir="./results/RPscores/${traitRR}/"
+            threshold_network_pairs=$( readlink -f ./test/slurm_thresholds_maleWC.txt )
+            while IFS=$'\t' read -r threshold network; do
+                echo "Threshold $threshold, Network: $network"
+                docker run --rm -v $(pwd):$(pwd) -w $(pwd) -u $(id -u):$(id -g) $container_python /bin/bash -c \
+                    "python3 ./scripts/phase2/dc_generate_rp_statistics.py \
+                        --gene_set_path $genes_rpscores_filedir \
+                        --master_summary_path ${output_dir}/${traitRR}/master_summary_filtered_parsed.csv \
+                        --trait ${traitRR} \
+                        --module_path ${moduleFileDir}/${network}.txt \
+                        --go_path ${output_dir}/${traitRR}/GO_summaries/${traitRR}/ \
+                        --output_path ${output_dir}/${traitRR}/results/raw/ \
+                        --network $network \
+                        --threshold $threshold"
+            done < $threshold_network_pairs
+            echo "done"
 
-        # (2.2) generate statistics for permutation run
-        echo "# STEP 2.2: generating statistics for permutation runs"
-        genes_rpscores_filedir="./results/RPscores/${traitRR}/"
-        threshold_network_pairs=$( readlink -f ./test/slurm_thresholds_maleWC.txt )
-        while IFS=$'\t' read -r threshold network; do
-            echo "Threshold $threshold, Network: $network"
-            docker run --rm -v $(pwd):$(pwd) -w $(pwd) -u $(id -u):$(id -g) $container_python /bin/bash -c \
-                "python3 ./scripts/phase2/dc_generate_rp_statistics.py \
-                    --gene_set_path $genes_rpscores_filedir \
-                    --master_summary_path ${output_dir}/${traitRR}/master_summary_filtered_parsed.csv \
-                    --trait ${traitRR} \
-                    --module_path ${moduleFileDir}/${network}.txt \
-                    --go_path ${output_dir}/${traitRR}/GO_summaries/${traitRR}/ \
-                    --output_path ${output_dir}/${traitRR}/results/raw/ \
-                    --network $network \
-                    --threshold $threshold"
-        done < $threshold_network_pairs
-        echo "done"
+            # (3) summarize statistics
+            echo "# STEP 2.3: summarizing statistics"
+            for network in `ls ${moduleFileDir}/`;
+            do
+                echo "Network: $network"
+                network="${network%.*}" # remove extension
+                docker run --rm -v $(pwd):$(pwd) -w $(pwd) -u $(id -u):$(id -g) $container_python /bin/bash -c \
+                    "python3 ./scripts/phase2/dc_summary_statistics_rp.py \
+                        --trait $trait \
+                        --input_path $output_dir \
+                        --or_id $trait \
+                        --rr_id ${traitRR} \
+                        --input_file_rr_id ${traitRR} \
+                        --network $network \
+                        --output_path ${output_dir}/${trait}/summary/"
+            done
 
-        # (3) summarize statistics
-        echo "# STEP 2.3: summarizing statistics"
-        for network in `ls ${moduleFileDir}/`;
-        do
-            echo "Network: $network"
-            network="${network%.*}" # remove extension
-            docker run --rm -v $(pwd):$(pwd) -w $(pwd) -u $(id -u):$(id -g) $container_python /bin/bash -c \
-                "python3 ./scripts/phase2/dc_summary_statistics_rp.py \
-                    --trait $trait \
-                    --input_path $output_dir \
-                    --or_id $trait \
-                    --rr_id ${traitRR} \
-                    --input_file_rr_id ${traitRR} \
-                    --network $network \
-                    --output_path ${output_dir}/${trait}/summary/"
-        done
+            # (4) identify MEA passing genes
+            echo "# STEP 2.4: identify MEA-passing genes"
+            FDR_threshold=0.05 # TODO: add as input argument
+            percentile_threshold=0.99 # TODO: add as input argument
+            for network in `ls ${moduleFileDir}/`;
+            do
+                echo "Network: $network"
+                network="${network%.*}" # remove extension
+                docker run --rm -v $(pwd):$(pwd) -w $(pwd) -u $(id -u):$(id -g) $container_python /bin/bash -c \
+                    "python3 ./scripts/phase2/dc_identify_mea_passing_genes.py \
+                        --trait $trait \
+                        --geneset_input $pvalFileDir\
+                        --FDR_threshold $FDR_threshold \
+                        --percentile_threshold $percentile_threshold \
+                        --network $network \
+                        --input_path ${output_dir}/${trait}"
+            done
+        else
+            ##############################
+            ## ALTERNATIVE THRESHOLDING ##
+            ##############################
+            echo "
+##############################
+## ALTERNATIVE THRESHOLDING ##
+##############################
+            "
 
-        # (4) identify MEA passing genes
-        echo "# STEP 2.4: identify MEA-passing genes"
-        FDR_threshold=0.05 # TODO: add as input argument
-        percentile_threshold=0.99 # TODO: add as input argument
-        for network in `ls ${moduleFileDir}/`;
-        do
-            echo "Network: $network"
-            network="${network%.*}" # remove extension
-            docker run --rm -v $(pwd):$(pwd) -w $(pwd) -u $(id -u):$(id -g) $container_python /bin/bash -c \
-                "python3 ./scripts/phase2/dc_identify_mea_passing_genes.py \
-                    --trait $trait \
-                    --geneset_input $pvalFileDir\
-                    --FDR_threshold $FDR_threshold \
-                    --percentile_threshold $percentile_threshold \
-                    --network $network \
-                    --input_path ${output_dir}/${trait}"
-        done
+        fi
     fi
 
 
