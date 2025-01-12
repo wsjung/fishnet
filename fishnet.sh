@@ -142,29 +142,31 @@ echo "# STEP 2.1: generating statistics for original run"
 genes_filedir="/app/${pvalFileDir#$(pwd)}"
 module_filedir="/app/${moduleFileDir#$(pwd)}"
 results_dir="/app/${output_dir#$(pwd)}"
-for network in `ls ${moduleFileDir}`;
+for network in `ls ${moduleFileDir}/`;
 do
-    docker run -i --rm -v $(pwd):/app -u $(id -u):$(id -g) $container_python /bin/bash -c \
+    echo "Network: $network"
+    network="${network%.*}" # remove extension
+    docker run --rm -v $(pwd):/app -u $(id -u):$(id -g) $container_python /bin/bash -c \
         "python3 /app/scripts/phase2/dc_generate_or_statistics.py \
             --gene_set_path $genes_filedir \
             --master_summary_path ${results_dir}/${trait}/master_summary_filtered_parsed.csv \
             --trait $trait  \
-            --module_path ${module_filedir}/${network} \
+            --module_path ${module_filedir}/${network}.txt \
             --go_path ${results_dir}/${trait}/GO_summaries/${trait}/ \
             --study $trait \
             --output_path ${results_dir}/${trait}/results/raw/ \
             --network $network"
 done
-ehco "done"
+echo "done"
 
 # (2) generate statistics for permutation run
 # TODO: rewrite in nextflow(?) for parallelism
 # (2.1) TODO: prepare file with threshold:network pairs
 
-threshold_network_pairs=$( readlink -f ./test/slurm_thresholds_maleWC.txt )
 # (2.2) generate statistics for permutation run
 echo "# STEP 2.2: generating statistics for permutation runs"
 genes_rpscores_filedir="/app/results/RPscores/${trait}RR/"
+threshold_network_pairs=$( readlink -f ./test/slurm_thresholds_maleWC.txt )
 while IFS=$'\t' read -r threshold network; do
     echo "Threshold $threshold, Network: $network"
     docker run --rm -v $(pwd):/app -u $(id -u):$(id -g) $container_python /bin/bash -c \
