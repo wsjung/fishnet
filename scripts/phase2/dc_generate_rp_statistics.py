@@ -8,14 +8,14 @@ import math
 #Usage in generate_rp_statistics.sbatch
 
 def generate_rp_statistics(gene_set_path, master_summary_path, trait, module_path, go_path, output_path, threshold, network ):
-    print("Started")
-    print(gene_set_path)
-    print(master_summary_path)
-    print(module_path)
-    print(go_path)
-    print(output_path)
-    print(threshold)
-    print(network)
+    #print("Started")
+    #print(gene_set_path)
+    #print(master_summary_path)
+    #print(module_path)
+    #print(go_path)
+    #print(output_path)
+    #print(threshold)
+    #print(network)
     final_df = pd.DataFrame(columns = ["threshold", "avg_mea_passing", "avgFraction_mea_passing", "FP_in_XXXX"])
     threshold = int(threshold)
 
@@ -28,7 +28,7 @@ def generate_rp_statistics(gene_set_path, master_summary_path, trait, module_pat
 
     #read master summary files
     master_summary = pd.read_csv(master_summary_path)
-    print(master_summary.columns)
+    #print(master_summary.columns)
     master_summary = master_summary[(master_summary["network"] == network)]    
 
     #read modules
@@ -48,7 +48,7 @@ def generate_rp_statistics(gene_set_path, master_summary_path, trait, module_pat
     for index in list(range(1,11)):
         if(index % 100 == 0):
             print(index)
-        gene_set_df = pd.read_csv(os.path.join(gene_set_path,f"{index}-{trait}.csv)")
+        gene_set_df = pd.read_csv(os.path.join(gene_set_path,f"{index}-{trait}.csv"))
         gene_set_df.columns = ["Gene", "pval"]
         gene_set_df = gene_set_df.sort_values(by = ["pval"])
         temp_gene_set_df = gene_set_df.head(threshold)
@@ -70,7 +70,8 @@ def generate_rp_statistics(gene_set_path, master_summary_path, trait, module_pat
     temp_stat_df = pd.DataFrame(columns = ["Rank", "MEA_passing_genes"])
     temp_stat_df["Rank"] = [threshold] * len(mea_passing_genes_count_list)
     temp_stat_df["MEA_passing_genes"] = mea_passing_genes_count_list
-    individual_stat_df = individual_stat_df.append(temp_stat_df)
+    #individual_stat_df = individual_stat_df.append(temp_stat_df)
+    individual_stat_df = pd.concat([individual_stat_df, temp_stat_df], ignore_index=True)
 
     #calculate the summary statistics and save in the final df     
     average_mea_passing_genes_count_list = sum(mea_passing_genes_count_list)/ len(mea_passing_genes_count_list)
@@ -86,12 +87,14 @@ def generate_rp_statistics(gene_set_path, master_summary_path, trait, module_pat
     final_df.loc[len(final_df.index)] = [threshold, average_mea_passing_genes_count_list, average_fraction_of_mea_passing_genes_count_list, FP_in_XXXX]
 
     #write final df to the output directory
+    if not os.path.exists(output_path):
+        os.makedirs(output_path)
     individual_stat_df.to_csv(os.path.join(output_path,f"{trait}_{threshold}_{network}_rp_mea_passing_across_permutations.csv"), index = None)
     final_df.to_csv(os.path.join(output_path,f"{trait}_{threshold}_{network}_rp_summary.csv"), index = None)
-    print("Completed")
+    #print("Completed")
 
 def extract_module_genes_by_index(module_df, index):
-    print(index)
+    #print(index)
     genes_row = module_df.loc[index].dropna().tolist()
 
     # Exclude the first two columns (index and second column, assuming it's not a gene)
