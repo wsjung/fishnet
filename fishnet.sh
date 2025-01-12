@@ -22,7 +22,7 @@ Usage: fishnet.sh [options]
     --skip-stage-2
         Skips stage 2 of FISHNET
         Default: false
-    --thresholding_alternative
+    --thresholding-alternative
         Configures stage 2 to run alternative thresholding mechanism
         Default: false (runs default thresholding mechanism)
 EOF
@@ -53,7 +53,7 @@ while [[ $# -gt 0 ]]; do
             SKIP_STAGE_2=true
             shift
             ;;
-        --thresholding_alternative)
+        --thresholding-alternative)
             THRESHOLDING_MODE=$THRESHOLDING_MODE_ALTERNATIVE
             shift
             ;;
@@ -85,6 +85,7 @@ if [ "$TEST_MODE" = true ]; then
     num_permutations="10"
     pvalFileDir=./test/${trait}/
     pvalFileName=${pvalFileDir}/0-${trait}.csv
+    pvalFileNameRR="./test/${traitRR}/${traitRR}.csv"
     moduleFileDir=./test/ker_based/
     numTests=$(( $(wc -l < "$pvalFileName") - 1 ))
     geneColName="Genes"
@@ -134,7 +135,6 @@ if [ "$TEST_MODE" = true ]; then
         # (3) nextflow random permutation run
         echo "# STEP 1.3: executing Nextflow MEA pipeline on random permutations"
         echo "executing Nextflow MEA pipeline on random permutations"
-        pvalFileNameRR="./test/${traitRR}/${traitRR}.csv"
         nextflow run ./scripts/phase1/nextflow/main.nf \
             --trait ${traitRR} \
             --moduleFileDir $moduleFileDir \
@@ -312,6 +312,13 @@ if [ "$TEST_MODE" = true ]; then
 ## ALTERNATIVE THRESHOLDING ##
 ##############################
             "
+            # (1) generate background gene sets for GO analysis
+            echo "# STEP 1: generating background gene sets for GO analysis"
+            docker run --rm -v $(pwd):$(pwd) -w $(pwd) -u $(id -u):$(id -g) $container_python /bin/bash -c \
+                "python3 ./scripts/phase2/dc_fishnet_background_genes.py \
+                    --genes_filepath $pvalFileNameRR \
+                    --module_filepath $moduleFileDir \
+                    --output_filepath ${output_dir}/${trait}/"
 
         fi
     fi
