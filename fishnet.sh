@@ -320,6 +320,10 @@ if [ "$TEST_MODE" = true ]; then
                     --module_filepath $moduleFileDir \
                     --output_filepath ${output_dir}/${trait}/"
 
+            # (1.1) copy background genes to permutation directory
+            cp ${output_dir}/${trait}/background_genes/ ${output_dir}/${traitRR}/
+
+
         fi
     fi
 
