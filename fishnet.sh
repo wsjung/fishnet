@@ -93,6 +93,8 @@ if [ "$TEST_MODE" = true ]; then
     pvalColName="p_vals"
     bonferroni_alpha="0.05"
     output_dir=./results/
+    FDR_threshold=0.05 # TODO: add as input argument
+    percentile_threshold=0.99 # TODO: add as input argument
 
     ### list of containers ###
     # contains all python dependencies for fishnet
@@ -290,8 +292,6 @@ if [ "$TEST_MODE" = true ]; then
 
             # (4) identify MEA passing genes
             echo "# STEP 2.4: identify MEA-passing genes"
-            FDR_threshold=0.05 # TODO: add as input argument
-            percentile_threshold=0.99 # TODO: add as input argument
             for network in `ls ${moduleFileDir}/`;
             do
                 echo "Network: $network"
@@ -314,6 +314,7 @@ if [ "$TEST_MODE" = true ]; then
 ## ALTERNATIVE THRESHOLDING ##
 ##############################
             "
+
             # (1) generate background gene sets for GO analysis
             echo "# STEP 1: generating background gene sets for GO analysis"
             docker run --rm -v $(pwd):$(pwd) -w $(pwd) -u $(id -u):$(id -g) $container_python /bin/bash -c \
@@ -432,6 +433,23 @@ if [ "$TEST_MODE" = true ]; then
                         --network $network \
                         --output_path ${output_dir}/${trait}/summary_alternate/"
             done
+
+            # (7) Extract genes that meet FISHNET criteria
+            echo "# STEP 7: Extracting FISHNET genes"
+            for network in `ls ${moduleFileDir}/`;
+            do
+                echo "Network: $network"
+                network="${network%.*}" # remove extension
+                docker run --rm -v $(pwd):$(pwd) -w $(pwd) -u $(id -u):$(id -g) $container_python /bin/bash -c \
+                    "python3 ./scripts/phase2/dc_identify_mea_passing_genes_alternate.py \
+                        --trait $trait \
+                        --geneset_input $pvalFileDir \
+                        --FDR_threshold $FDR_threshold \
+                        --percentile_threshold $percentile_threshold \
+                        --network $network \
+                        --input_path ${output_dir}/${trait}/"
+            done
+
         fi
     fi
 else
