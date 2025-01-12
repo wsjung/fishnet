@@ -323,6 +323,22 @@ if [ "$TEST_MODE" = true ]; then
             # (1.1) copy background genes to permutation directory
             cp -r ${output_dir}/${trait}/background_genes/ ${output_dir}/${traitRR}/
 
+            # (2) Extract and save module genes as individual files for modules that satisfy Bonferroni 0.25
+            echo "# STEP 2: extract and save modules that satisfy Bonferroni threshold"
+            # (2.1) original run
+            docker run --rm -v $(pwd):$(pwd) -w $(pwd) -u $(id -u):$(id -g) $container_python /bin/bash -c \
+                "python3 ./scripts/phase2/dc_fishnet_module_genes.py \
+                    --genes_filepath $pvalFileNameRR \
+                    --module_filepath $moduleFileDir \
+                    --master_summary_path ${output_dir}/${trait}/ \
+                    --study $trait"
+            # (2.1) permutation run
+            docker run --rm -v $(pwd):$(pwd) -w $(pwd) -u $(id -u):$(id -g) $container_python /bin/bash -c \
+                "python3 ./scripts/phase2/dc_fishnet_module_genes.py \
+                    --genes_filepath $pvalFileNameRR \
+                    --module_filepath $moduleFileDir \
+                    --master_summary_path ${output_dir}/${traitRR}/ \
+                    --study $traitRR"
         fi
     fi
 else
