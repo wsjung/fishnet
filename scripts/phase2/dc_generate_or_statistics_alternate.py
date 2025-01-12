@@ -54,6 +54,8 @@ def generate_or_statistics(gene_set_path, master_summary_path, trait, module_pat
         mea_passing_genes_df.loc[len(mea_passing_genes_df.index)] = [threshold, list(temp_mea_passing_genes) ]
 
     #write final df to the output directory
+    if not os.path.exists(output_path):
+        os.makedirs(output_path)
     final_df.to_csv(os.path.join(output_path,f"{network}_{trait}_{network}_or_summary.csv"), index = None)
     mea_passing_genes_df.to_csv(os.path.join(output_path,f"{network}_{trait}_{network}_or_fishnet_genes.csv"), index = None)
 
@@ -82,7 +84,7 @@ def MEA_passing(module_path, temp_master_summary, go_path, gene_set, trait, stud
             #find the genes that lie in enriched modules
             module_index = temp_master_summary["moduleIndex"][index]
             module_index = int(module_index)
-            module_df = pd.read_csv(os.path.join(module_path,f"sig_{module_path.split("/")[-2]}-{module_index}.txt"), header = None)
+            module_df = pd.read_csv(os.path.join(module_path,f"sig_{module_path.split('/')[-2]}-{module_index}.txt"), header = None)
             module_df.columns = ["Genes"]
             module_genes = module_df["Genes"].tolist()
      
@@ -90,7 +92,7 @@ def MEA_passing(module_path, temp_master_summary, go_path, gene_set, trait, stud
             module_genes_intersection_gene_set = set(gene_set).intersection(set(module_genes))
 
             #find the genes that also lie in enriched GO Term for the enriched module        
-            go_file = f"sig_{module_path.split("/")[-2]}-{module_index}.csv"
+            go_file = f"sig_{module_path.split('/')[-2]}-{module_index}.csv"
 
             go_df = pd.read_csv(os.path.join(go_path,go_file))
             if (go_df.shape[0] > 0):
