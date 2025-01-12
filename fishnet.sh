@@ -415,6 +415,23 @@ if [ "$TEST_MODE" = true ]; then
                         --threshold $threshold"
             done < $threshold_network_pairs_alternate
             echo "done"
+
+            # (6) summarize statistics from original and permutation runs
+            echo "# STEP 6: summarize statistics from original and permutation runs"
+            for network in `ls ${moduleFileDir}/`;
+            do
+                echo "Network: $network"
+                network="${network%.*}" # remove extension
+                docker run --rm -v $(pwd):$(pwd) -w $(pwd) -u $(id -u):$(id -g) $container_python /bin/bash -c \
+                    "python3 ./scripts/phase2/dc_summary_statistics_rp_alternate.py \
+                        --trait $trait \
+                        --input_path $output_dir \
+                        --or_id $trait \
+                        --rr_id $traitRR \
+                        --input_file_rr_id $traitRR \
+                        --network $network \
+                        --output_path ${output_dir}/${trait}/summary_alternate/"
+            done
         fi
     fi
 else
