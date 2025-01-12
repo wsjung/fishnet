@@ -19,7 +19,7 @@ def dc_fishnet_module_genes(genes_filepath, module_filepath, master_summary_path
 
 def extract_modules(master_summary_path, study):    
     final_module_network_pair = pd.DataFrame(columns = ["moduleIndex", "network", "trait", "Study"])
-    master_summary_df = pd.read_csv(os.path.join(master_summary_path,"/master_summary.csv"))
+    master_summary_df = pd.read_csv(os.path.join(master_summary_path,"master_summary.csv"))
     master_summary_df = master_summary_df[["study", "trait", "network", "moduleIndex", "isModuleSig", "modulePval", "moduleBonPval", "size"]]
     master_summary_df = master_summary_df[master_summary_df["moduleBonPval"] <= 0.25]
     master_summary_df.to_csv(os.path.join(master_summary_path,"master_summary_alternate.csv"), index = False)
