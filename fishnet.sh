@@ -138,7 +138,7 @@ cut -d ',' -f 1-8 "${output_dir}/${trait}/master_summary_filtered.csv" > "${outp
 cut -d ',' -f 1-8 "${output_dir}/${trait}RR/master_summary_filtered.csv" > "${output_dir}/${trait}RR/master_summary_filtered_parsed.csv"
 
 ## (1) generate statistics for original run
-echo "# STEP 2.1: generating statistics for original run"
+#echo "# STEP 2.1: generating statistics for original run"
 genes_filedir="/app/${pvalFileDir#$(pwd)}"
 module_filedir="/app/${moduleFileDir#$(pwd)}"
 results_dir="/app/${output_dir#$(pwd)}"
@@ -181,5 +181,22 @@ while IFS=$'\t' read -r threshold network; do
             --threshold $threshold"
 done < $threshold_network_pairs
 echo "done"
+
+# (3) summarize statistics
+echo "# STEP 2.3: summarizing statistics"
+for network in `ls ${moduleFileDir}/`;
+do
+    echo "Network: $network"
+    network="${network%.*}" # remove extension
+    docker run --rm -v $(pwd):/app -u $(id -u):$(id -g) $container_python /bin/bash -c \
+        "python3 /app/scripts/phase2/dc_summary_statistics_rp.py \
+            --trait $trait \
+            --input_path $results_dir \
+            --or_id $trait \
+            --rr_id ${trait}RR \
+            --input_file_rr_id ${trait}RR \
+            --network $network \
+            --output_path ${results_dir}/${trait}/summary/"
+done
 
 echo "### FISHNET COMPLETE ###"
