@@ -86,7 +86,8 @@ if [ "$TEST_MODE" = true ]; then
     pvalFileDir=./test/${trait}/
     pvalFileName=${pvalFileDir}/0-${trait}.csv
     pvalFileNameRR="./test/${traitRR}/${traitRR}.csv"
-    moduleFileDir=./test/ker_based/
+    module_algo="ker_based"
+    moduleFileDir=./test/${module_algo}/
     numTests=$(( $(wc -l < "$pvalFileName") - 1 ))
     geneColName="Genes"
     pvalColName="p_vals"
@@ -98,6 +99,7 @@ if [ "$TEST_MODE" = true ]; then
     #   TODO: create single container with all python dependencies (include statsmodels)
     #   TODO: add to biocontainers 
     container_python="jungwooseok/dc_rp_genes:1.0"
+    container_R="jungwooseok/r-webgestaltr:1.0"
 
     if [ "$SKIP_STAGE_1" = true ]; then
         echo "Skipping STAGE 1"
@@ -326,6 +328,7 @@ if [ "$TEST_MODE" = true ]; then
             # (2) Extract and save module genes as individual files for modules that satisfy Bonferroni 0.25
             echo "# STEP 2: extract and save modules that satisfy Bonferroni threshold"
             # (2.1) original run
+            echo " - original run"
             docker run --rm -v $(pwd):$(pwd) -w $(pwd) -u $(id -u):$(id -g) $container_python /bin/bash -c \
                 "python3 ./scripts/phase2/dc_fishnet_module_genes.py \
                     --genes_filepath $pvalFileNameRR \
@@ -333,12 +336,48 @@ if [ "$TEST_MODE" = true ]; then
                     --master_summary_path ${output_dir}/${trait}/ \
                     --study $trait"
             # (2.1) permutation run
+            echo " - permutation run"
             docker run --rm -v $(pwd):$(pwd) -w $(pwd) -u $(id -u):$(id -g) $container_python /bin/bash -c \
                 "python3 ./scripts/phase2/dc_fishnet_module_genes.py \
                     --genes_filepath $pvalFileNameRR \
                     --module_filepath $moduleFileDir \
                     --master_summary_path ${output_dir}/${traitRR}/ \
                     --study $traitRR"
+
+            # (3) Run GO analysis
+            echo "# STEP 3: running GO analysis"
+            # (3.1) original run
+            echo " - original run"
+            set +e
+            for network in `ls ${moduleFileDir}/`;
+            do
+                echo "Network: $network"
+                network="${network%.*}" # remove extension
+                docker run --rm -v $(pwd):$(pwd) -w $(pwd) -u $(id -u):$(id -g) $container_R /bin/bash -c \
+                    "Rscript ./scripts/phase2/dc_ORA_cmd.R \
+                        --sigModuleDir ${output_dir}/${trait}/enriched_modules/${trait}-${network}/ \
+                        --backGroundGenesFile ${output_dir}/${trait}/background_genes/${module_algo}-${network}.txt \
+                        --summaryRoot ${output_dir}/${trait}/GO_summaries_alternate/ \
+                        --reportRoot ${output_dir}/${trait}/report_sumamries_alternate/"
+
+            done
+            set -e
+            # (3.2) permutation run
+            echo " - permutation run"
+            set +e
+            for network in `ls ${moduleFileDir}/`;
+            do
+                echo "Network: $network"
+                network="${network%.*}" # remove extension
+                docker run --rm -v $(pwd):$(pwd) -w $(pwd) -u $(id -u):$(id -g) $container_R /bin/bash -c \
+                    "Rscript ./scripts/phase2/dc_ORA_cmd.R \
+                        --sigModuleDir ${output_dir}/${traitRR}/enriched_modules/${traitRR}-${network}/ \
+                        --backGroundGenesFile ${output_dir}/${traitRR}/background_genes/${module_algo}-${network}.txt \
+                        --summaryRoot ${output_dir}/${traitRR}/GO_summaries_alternate/ \
+                        --reportRoot ${output_dir}/${traitRR}/report_sumamries_alternate/"
+
+            done
+            set -e
         fi
     fi
 else
