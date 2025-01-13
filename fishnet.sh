@@ -25,6 +25,9 @@ Usage: fishnet.sh [options]
     --thresholding-alternative
         Configures stage 2 to run alternative thresholding mechanism
         Default: false (runs default thresholding mechanism)
+    --singularity
+        Configures containers to run using singularity
+        Default: false (runs containers using docker)
 EOF
 }
 
@@ -34,6 +37,7 @@ SKIP_STAGE_2=false
 THRESHOLDING_MODE_DEFAULT="default"
 THRESHOLDING_MODE_ALTERNATIVE="alternative"
 THRESHOLDING_MODE=$THRESHOLDING_MODE_DEFAULT
+SINGULARITY=false
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -55,6 +59,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --thresholding-alternative)
             THRESHOLDING_MODE=$THRESHOLDING_MODE_ALTERNATIVE
+            shift
+            ;;
+        --singularity)
+            SINGULARITY=true
             shift
             ;;
         *)
