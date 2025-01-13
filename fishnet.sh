@@ -730,6 +730,57 @@ EOT
     set -e
 }
 
+phase2_step4_alternate() {
+
+    # (4) Generate statistics for original gene-level p-values
+    echo "# STEP 4: generate statistics for original gene-level p-values"
+    if [ "$SINGULARITY" = true ]; then
+        tmpfile=$(mktemp --tmpdir="$(pwd)/tmp")
+        ls ${MODULEFILEDIR} > $tmpfile
+        num_networks=$( wc -l < $tmpfile)
+        JOB_STAGE2_STEP4_ALTERNATE=$(sbatch --dependency=afterany:"$JOB_STAGE2_STEP3_ORIGINAL_ALTERNATE_ID" <<EOT
+#!/bin/bash
+#SBATCH -J phase2_step4_alternate
+#SBATCH --array=1-$num_networks
+#SBATCH --mem-per-cpu=4G
+#SBATCH --cpus-per-task=1
+#SBATCH -o ./logs/phase2_step4_alternate_%A_%a.out
+network=\$( sed -n \${SLURM_ARRAY_TASK_ID}p $tmpfile )
+network="\${network%.*}" # remove extension
+echo "Network: \$network"
+singularity exec --no-home -B $(pwd):$(pwd) --pwd $(pwd) $container_python  \
+    python3 ./scripts/phase2/dc_generate_or_statistics_alternate.py \
+        --gene_set_path ${PVALFILEDIR} \
+        --master_summary_path ${OUTPUT_DIR}/${TRAIT}/master_summary_alternate.csv \
+        --trait $TRAIT \
+        --module_path ${OUTPUT_DIR}/${TRAIT}/enriched_modules/${TRAIT}-\${network}/ \
+        --go_path ${OUTPUT_DIR}/${TRAIT}/GO_summaries_alternate/ \
+        --study $TRAIT \
+        --output_path ${OUTPUT_DIR}/${TRAIT}/results/raw_alternate/ \
+        --network \$network
+EOT
+)
+        #rm $tmpfile
+        JOB_STAGE2_STEP4_ALTERNATE_ID=$(echo "$JOB_STAGE2_STEP4_ALTERNATE" | awk '{print $4}')
+    else
+        for network in `ls ${MODULEFILEDIR}/`;
+        do
+            echo "Network: $network"
+            network="${network%.*}" # remove extension
+            docker run --rm -v $(pwd):$(pwd) -w $(pwd) -u $(id -u):$(id -g) $container_python /bin/bash -c \
+                "python3 ./scripts/phase2/dc_generate_or_statistics_alternate.py \
+                    --gene_set_path ${PVALFILEDIR} \
+                    --master_summary_path ${OUTPUT_DIR}/${TRAIT}/master_summary_alternate.csv \
+                    --trait $TRAIT \
+                    --module_path ${OUTPUT_DIR}/${TRAIT}/enriched_modules/${TRAIT}-${network}/ \
+                    --go_path ${OUTPUT_DIR}/${TRAIT}/GO_summaries_alternate/ \
+                    --study $TRAIT \
+                    --output_path ${OUTPUT_DIR}/${TRAIT}/results/raw_alternate/ \
+                    --network $network"
+        done
+    fi
+}
+
 print_test_message() {
     echo "
 ########################################
@@ -859,23 +910,7 @@ if [ "$TEST_MODE" = true ]; then
 
             phase2_step3_permutation_alternate
 
-            # (4) Generate statistics for original gene-level p-values
-            echo "# STEP 4: generate statistics for original gene-level p-values"
-            for network in `ls ${MODULEFILEDIR}/`;
-            do
-                echo "Network: $network"
-                network="${network%.*}" # remove extension
-                docker run --rm -v $(pwd):$(pwd) -w $(pwd) -u $(id -u):$(id -g) $container_python /bin/bash -c \
-                    "python3 ./scripts/phase2/dc_generate_or_statistics_alternate.py \
-                        --gene_set_path ${PVALFILEDIR} \
-                        --master_summary_path ${OUTPUT_DIR}/${TRAIT}/master_summary_alternate.csv \
-                        --trait $TRAIT \
-                        --module_path ${OUTPUT_DIR}/${TRAIT}/enriched_modules/${TRAIT}-${network}/ \
-                        --go_path ${OUTPUT_DIR}/${TRAIT}/GO_summaries_alternate/ \
-                        --study $TRAIT \
-                        --output_path ${OUTPUT_DIR}/${TRAIT}/results/raw_alternate/ \
-                        --network $network"
-            done
+            phase2_step4_alternate
 
             # (5) Generate statistics for random permutation runs
             echo "# STEP 5: generate statistics for random permutations"
