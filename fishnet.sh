@@ -117,145 +117,137 @@ else
 fi
 echo " - nextflow config: $NXF_CONFIG"
 
+### test parameters ###
+export trait="maleWC"
+export traitRR="${trait}RR"
+export num_permutations="10"
+export pvalFileDir=$( readlink -f ./test/${trait} )
+export pvalFileName=${pvalFileDir}/0-${trait}.csv
+export pvalFileNameRR=$( readlink -f ./test/${traitRR}/${traitRR}.csv )
+export module_algo="ker_based"
+export moduleFileDir=$( readlink -f ./test/${module_algo}/ )
+export numTests=$(( $(wc -l < "$pvalFileName") - 1 ))
+export geneColName="Genes"
+export pvalColName="p_vals"
+export bonferroni_alpha="0.05"
+export output_dir=./results/
+export FDR_threshold=0.05 # TODO: add as input argument
+export percentile_threshold=0.99 # TODO: add as input argument
 
-### TEST CONFIG ENTRYPOINT ###
-if [ "$TEST_MODE" = true ]; then
-    echo "
-########################################
-##### RUNNING FISHNET ON TEST DATA #####
-########################################
+### list of containers ###
+# contains all python dependencies for fishnet
+#   TODO: create single container with all python dependencies (include statsmodels)
+#   TODO: add to biocontainers 
+export container_python="docker://jungwooseok/dc_rp_genes:1.0"
+export container_R="docker://jungwooseok/r-webgestaltr:1.0"
 
-    "
+#################
+### FUNCTIONS ###
+#################
+phase1_step1() {
 
-    ### test parameters ###
-    export trait="maleWC"
-    export traitRR="${trait}RR"
-    export num_permutations="10"
-    export pvalFileDir=$( readlink -f ./test/${trait} )
-    export pvalFileName=${pvalFileDir}/0-${trait}.csv
-    export pvalFileNameRR=$( readlink -f ./test/${traitRR}/${traitRR}.csv )
-    export module_algo="ker_based"
-    export moduleFileDir=$( readlink -f ./test/${module_algo}/ )
-    export numTests=$(( $(wc -l < "$pvalFileName") - 1 ))
-    export geneColName="Genes"
-    export pvalColName="p_vals"
-    export bonferroni_alpha="0.05"
-    export output_dir=./results/
-    export FDR_threshold=0.05 # TODO: add as input argument
-    export percentile_threshold=0.99 # TODO: add as input argument
-
-    ### list of containers ###
-    # contains all python dependencies for fishnet
-    #   TODO: create single container with all python dependencies (include statsmodels)
-    #   TODO: add to biocontainers 
-    export container_python="docker://jungwooseok/dc_rp_genes:1.0"
-    export container_R="docker://jungwooseok/r-webgestaltr:1.0"
-
-    if [ "$SKIP_STAGE_1" = true ]; then
-        echo "Skipping STAGE 1"
+    # (1) nextflow original run
+    echo "# STEP 1.1: executing Nextflow MEA pipeline on original run"
+    if [ "$SINGULARITY" = true ]; then
+        JOB_STAGE1_STEP1=$(sbatch ./scripts/phase1/phase1_step1.sh $(pwd))
+        JOB_STAGE1_STEP1_ID=$(echo "$JOB_STAGE1_STEP1" | awk '{print $4}')
     else
-        ###############
-        ### PHASE 1 ###
-        ###############
-        echo "
-###############
-### PHASE 1 ###
-###############
-        "
-        # (1) nextflow original run
-        echo "# STEP 1.1: executing Nextflow MEA pipeline on original run"
-        if [ "$SINGULARITY" = true ]; then
-            JOB_STAGE1_STEP1=$(sbatch ./scripts/phase1/phase1_step1.sh $(pwd))
-            JOB_STAGE1_STEP1_ID=$(echo "$JOB_STAGE1_STEP1" | awk '{print $4}')
-        else
-            ./scripts/phase1/phase1_step1.sh $(pwd)
-        fi
+        ./scripts/phase1/phase1_step1.sh $(pwd)
+    fi
 
-        # (2) generate uniform p-values
-        echo "# STEP 1.2: generating uniformly distributed p-values"
-        if [ "$SINGULARITY" = true ]; then
-            sbatch <<EOT
-#!/bin/bash
-#SBATCH -J phase1_step2
-#SBATCH -o ./logs/phase1_step2_%J.out
-singularity exec --no-home -B $(pwd):$(pwd) --pwd $(pwd) $container_python \
-    python3 ./scripts/phase1/generate_uniform_pvals.py \
-        --genes_filepath $pvalFileName
-EOT
-        else
-            docker run --rm -v $(pwd):$(pwd) -w $(pwd) -u $(id -u):$(id -g) $container_python  /bin/bash -c \
-                "python3 ./scripts/phase1/generate_uniform_pvals.py \
-                --genes_filepath $pvalFileName"
-        fi
-        echo "done" 
-
-        # (3) nextflow random permutation run
-        echo "# STEP 1.3: executing Nextflow MEA pipeline on random permutations"
-        echo "executing Nextflow MEA pipeline on random permutations"
-        if [ "$SINGULARITY" = true ]; then
-            JOB_STAGE1_STEP3=$(sbatch ./scripts/phase1/phase1_step3.sh $(pwd))
-            JOB_STAGE1_STEP3_ID=$(echo "$JOB_STAGE1_STEP3" | awk '{print $4}')
-        else
-            ./scripts/phase1/phase1_step3.sh $(pwd)
-        fi
-
-        # (4) compile results
-        echo "# STEP 4: compiling results"
-        # (4.1) original
-        echo "# STEP 4.1: original results"
-        summaries_path_original="${output_dir}/masterSummaries/summaries/"
-        if [ "$SINGULARITY" = true ]; then
-            JOB_STAGE1_STEP4_ORIGINAL=$(sbatch --dependency=afterok:"$JOB_STAGE1_STEP1_ID" <<EOT
+    # (4.1) original
+    summaries_path_original="${output_dir}/masterSummaries/summaries/"
+    if [ "$SINGULARITY" = true ]; then
+        JOB_STAGE1_STEP4_ORIGINAL=$(sbatch --dependency=afterok:"$JOB_STAGE1_STEP1_ID" <<EOT
 #!/bin/bash
 #SBATCH -J phase1_step4_original
 #SBATCH -o ./logs/phase1_step4_original_%J.out
 singularity exec --no-home -B $(pwd):$(pwd) --pwd $(pwd) $container_python \
-    python3 ./scripts/phase1/compile_results.py \
-        --dirPath $summaries_path_original \
-        --identifier $trait \
-        --output $output_dir
+python3 ./scripts/phase1/compile_results.py \
+    --dirPath $summaries_path_original \
+    --identifier $trait \
+    --output $output_dir
 EOT
 )
-            JOB_STAGE1_STEP4_ORIGINAL=$(echo "$JOB_STAGE1_STEP4_ORIGINAL" | awk '{print $4}')
-        else
-            docker run --rm -v $(pwd):$(pwd) -w $(pwd) -u $(id -u):$(id -g) $container_python /bin/bash -c \
-                "python3 ./scripts/phase1/compile_results.py \
-                    --dirPath $summaries_path_original \
-                    --identifier $trait \
-                    --output $output_dir"
-        fi
+        JOB_STAGE1_STEP4_ORIGINAL=$(echo "$JOB_STAGE1_STEP4_ORIGINAL" | awk '{print $4}')
+    else
+        docker run --rm -v $(pwd):$(pwd) -w $(pwd) -u $(id -u):$(id -g) $container_python /bin/bash -c \
+            "python3 ./scripts/phase1/compile_results.py \
+                --dirPath $summaries_path_original \
+                --identifier $trait \
+                --output $output_dir"
+    fi
 
-        # (4.2) random permutation
-        echo "# STEP 4.2: permutation results"
-        summaries_path_permutation="${output_dir}/masterSummaries_RP/summaries/"
-        if [ "$SINGULARITY" = true ]; then
-            JOB_STAGE1_STEP4_PERMUTATION=$(sbatch --dependency=afterok:"$JOB_STAGE1_STEP3_ID" <<EOT
+}
+
+phase1_step2() {
+
+    # (2) generate uniform p-values
+    echo "# STEP 1.2: generating uniformly distributed p-values"
+    if [ "$SINGULARITY" = true ]; then
+        sbatch <<EOT
+#!/bin/bash
+#SBATCH -J phase1_step2
+#SBATCH -o ./logs/phase1_step2_%J.out
+singularity exec --no-home -B $(pwd):$(pwd) --pwd $(pwd) $container_python \
+python3 ./scripts/phase1/generate_uniform_pvals.py \
+    --genes_filepath $pvalFileName
+EOT
+    else
+        docker run --rm -v $(pwd):$(pwd) -w $(pwd) -u $(id -u):$(id -g) $container_python  /bin/bash -c \
+            "python3 ./scripts/phase1/generate_uniform_pvals.py \
+            --genes_filepath $pvalFileName"
+    fi
+    echo "done" 
+
+}
+
+phase1_step3() {
+
+    # (3) nextflow random permutation run
+    echo "# STEP 1.3: executing Nextflow MEA pipeline on random permutations"
+    echo "executing Nextflow MEA pipeline on random permutations"
+    if [ "$SINGULARITY" = true ]; then
+        JOB_STAGE1_STEP3=$(sbatch ./scripts/phase1/phase1_step3.sh $(pwd))
+        JOB_STAGE1_STEP3_ID=$(echo "$JOB_STAGE1_STEP3" | awk '{print $4}')
+    else
+        ./scripts/phase1/phase1_step3.sh $(pwd)
+    fi
+
+    # (4.2)
+    summaries_path_permutation="${output_dir}/masterSummaries_RP/summaries/"
+    if [ "$SINGULARITY" = true ]; then
+        JOB_STAGE1_STEP4_PERMUTATION=$(sbatch --dependency=afterok:"$JOB_STAGE1_STEP3_ID" <<EOT
 #!/bin/bash
 #SBATCH -J phase1_step4_permutation
 #SBATCH -o ./logs/phase1_step4_permutation_%J.out
 singularity exec --no-home -B $(pwd):$(pwd) --pwd $(pwd) $container_python \
-    python3 ./scripts/phase1/compile_results.py \
-        --dirPath $summaries_path_permutation \
-        --identifier ${traitRR} \
-        --output $output_dir
+python3 ./scripts/phase1/compile_results.py \
+    --dirPath $summaries_path_permutation \
+    --identifier ${traitRR} \
+    --output $output_dir
 EOT
 )
-            JOB_STAGE1_STEP4_PERMUTATION=$(echo "$JOB_STAGE1_STEP4_PERMUTATION" | awk '{print $4}')
-        else
-            docker run --rm -v $(pwd):$(pwd) -w $(pwd) -u $(id -u):$(id -g) $container_python /bin/bash -c \
-                "python3 ./scripts/phase1/compile_results.py \
-                    --dirPath $summaries_path_permutation \
-                    --identifier ${traitRR} \
-                    --output $output_dir"
-        fi
-        echo "done"
+        JOB_STAGE1_STEP4_PERMUTATION=$(echo "$JOB_STAGE1_STEP4_PERMUTATION" | awk '{print $4}')
+    else
+        docker run --rm -v $(pwd):$(pwd) -w $(pwd) -u $(id -u):$(id -g) $container_python /bin/bash -c \
+            "python3 ./scripts/phase1/compile_results.py \
+                --dirPath $summaries_path_permutation \
+                --identifier ${traitRR} \
+                --output $output_dir"
+    fi
+    echo "done"
 
-        # (5) organize phase 1 results
-        echo "# STEP 5: restructuring phase 1 results for input to phase 2"
-        # TODO: consider defining shell functions in separate file
-        # function to organize phase 1 nextflow pipeline results
-        if [ "$SINGULARITY" = true ]; then
-            JOB_STAGE1_STEP5=$(sbatch --dependency=afterok:"$JOB_STAGE1_STEP4_ORIGINAL","$JOB_STAGE1_STEP4_PERMUTATION" <<EOT
+}
+
+phase1_step5() {
+
+    # (5) organize phase 1 results
+    echo "# STEP 5: restructuring phase 1 results for input to phase 2"
+    # TODO: consider defining shell functions in separate file
+    # function to organize phase 1 nextflow pipeline results
+    if [ "$SINGULARITY" = true ]; then
+        JOB_STAGE1_STEP5=$(sbatch --dependency=afterok:"$JOB_STAGE1_STEP4_ORIGINAL","$JOB_STAGE1_STEP4_PERMUTATION" <<EOT
 #!/bin/bash
 #SBATCH -J phase1_step5
 #SBATCH -o ./logs/phase1_step5_%J.out
@@ -282,47 +274,99 @@ organize_nextflow_results() {
 organize_nextflow_results $trait $output_dir $traitRR
 EOT
 )
-            JOB_STAGE1_STEP5_ID=$(echo "$JOB_STAGE1_STEP5" | awk '{print $4}')
-        else
-            organize_nextflow_results() {
-                trait=$1
-                results_dir=$2
-                traitRR="${traitRR}"
+        JOB_STAGE1_STEP5_ID=$(echo "$JOB_STAGE1_STEP5" | awk '{print $4}')
+    else
+        organize_nextflow_results() {
+            trait=$1
+            results_dir=$2
+            traitRR="${traitRR}"
 
-                # create outer trait directories
-                trait_dir="${results_dir}/${trait}/"
-                traitRR_dir="${results_dir}/${traitRR}/"
-                mkdir -p $trait_dir $traitRR_dir
+            # create outer trait directories
+            trait_dir="${results_dir}/${trait}/"
+            traitRR_dir="${results_dir}/${traitRR}/"
+            mkdir -p $trait_dir $traitRR_dir
 
-                # move over original results
-                mv "${results_dir}/GO_summaries" ${trait_dir}
-                mv "${results_dir}/masterSummaries" ${trait_dir}
-                mv "${results_dir}/master_summary_${trait}.csv" ${trait_dir}/master_summary.csv
+            # move over original results
+            mv "${results_dir}/GO_summaries" ${trait_dir}
+            mv "${results_dir}/masterSummaries" ${trait_dir}
+            mv "${results_dir}/master_summary_${trait}.csv" ${trait_dir}/master_summary.csv
 
-                # 3. move over permutation results
-                mv "${results_dir}/GO_summaries_RP" "${traitRR_dir}/GO_summaries"
-                mv "${results_dir}/masterSummaries_RP" "${traitRR_dir}/masterSummaries"
-                mv "${results_dir}/master_summary_${traitRR}.csv" ${traitRR_dir}/master_summary.csv
-            }
-            organize_nextflow_results $trait $output_dir
-        fi
-        echo "done"
-        if [ "$SINGULARITY" = true ]; then
-            srun --dependency=afterok:"$JOB_STAGE1_STEP5_ID" <<EOT
-echo "
-########################
-### PHASE 1 COMPLETE ###
-########################
-        "
-EOT
-        else
-            echo "
-########################
-### PHASE 1 COMPLETE ###
-########################
-        "
-        fi
+            # 3. move over permutation results
+            mv "${results_dir}/GO_summaries_RP" "${traitRR_dir}/GO_summaries"
+            mv "${results_dir}/masterSummaries_RP" "${traitRR_dir}/masterSummaries"
+            mv "${results_dir}/master_summary_${traitRR}.csv" ${traitRR_dir}/master_summary.csv
+        }
+        organize_nextflow_results $trait $output_dir
     fi
+    echo "done"
+}
+
+print_test_message() {
+    echo "
+########################################
+##### RUNNING FISHNET ON TEST DATA #####
+########################################
+"
+}
+
+print_phase1_message() {
+    echo "
+###############
+### PHASE 1 ###
+###############
+"
+}
+
+print_phase1_completion_message() {
+    echo "
+########################
+### PHASE 1 COMPLETE ###
+########################
+"
+}
+
+nextflow_cleanup() {
+    rm -rf .nextflow* work/
+}
+
+##############################
+### TEST CONFIG ENTRYPOINT ###
+##############################
+if [ "$TEST_MODE" = true ]; then
+
+    print_test_message
+
+    if [ "$SKIP_STAGE_1" = true ]; then
+        echo "Skipping STAGE 1"
+    else
+        ###############
+        ### PHASE 1 ###
+        ###############
+        print_phase1_message
+
+        phase1_step1
+
+        phase1_step2
+
+        phase1_step3
+
+        phase1_step5
+
+        if [ "$SINGULARITY" = true ]; then
+        # wait for phase1_step5 to complete
+            while squeue -h -j "$JOB_STAGE1_STEP5_ID" >/dev/null 2>&1; do
+                sleep 30
+            done
+        fi
+
+        print_phase1_completion_messagse
+
+        nextflow_cleanup
+
+    fi
+
+
+
     if [ "$SKIP_STAGE_2" = true ]; then
         echo "Skipping STAGE 2"
     else
