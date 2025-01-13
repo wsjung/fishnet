@@ -781,6 +781,69 @@ EOT
     fi
 }
 
+create_tmp_threshold_network_pairs_alternate() {
+    thresholds=(0.00005 0.0001 0.005 0.01 0.05 0.1 0.15 0.2 0.25)
+    modules=( $( ls ./test/ker_based/*.txt ) )
+    for f in "${modules[@]}"; do
+        base="$(basename "$f" .txt )"
+        for t in "${thresholds[@]}"; do
+            echo -e "${t}\t${base}"
+        done
+    done
+}
+
+phase2_step5_alternate() {
+
+    # (5) Generate statistics for random permutation runs
+    echo "# STEP 5: generate statistics for random permutations"
+    # (5.1) TODO: prepare file with bonferroni p-value:network pairs
+    #       TODO: pvalues are fixed at [0.25, 0.2, 0.15, 0.1, 0.05, 0.01, 0.005, 0.001, 0.00005]
+    #threshold_network_pairs_alternate=$( readlink -f ./test/slurm_thresholds_maleWC_alternate.txt )
+    tmpfile=$(mktemp --tmpdir="$(pwd)/tmp")
+    create_tmp_threshold_network_pairs_alternate > $tmpfile
+    if [ "$SINGULARITY" = true ]; then
+        num_pairs=$( wc -l < $tmpfile )
+        JOB_STAGE2_STEP5_ALTERNATE=$(sbatch --dependency="$JOB_STAGE2_STEP3_PERMUTATION_ALTERNATE_ID" <<EOF
+#!/bin/bash
+#SBATCH -J phase2_step5_alternate
+#SBATCH --array=1-$num_pairs
+#SBATCH --mem-per-cpu=4G
+#SBATCH --cpus-per-task=1
+#SBATCH -o ./logs/phase2_step5_alternate_%A_%a.out
+threshold=\$( sed -n \${SLURM_ARRAY_TASK_ID}p $tmpfile | cut -f 1)
+network=\$( sed -n \${SLURM_ARRAY_TASK_ID}p $tmpfile | cut -f 2)
+echo "Threshold \$threshold, Network: \$network"
+singularity exec --no-home -B $(pwd):$(pwd) --pwd $(pwd) $container_python  \
+    python3 ./scripts/phase2/dc_generate_rp_statistics_alternate.py \
+        --gene_set_path ${OUTPUT_DIR}/RPscores/${TRAITRR}/ \
+        --master_summary_path ${OUTPUT_DIR}/${TRAITRR}/master_summary_alternate.csv \
+        --trait ${TRAITRR} \
+        --module_path ${OUTPUT_DIR}/${TRAITRR}/enriched_modules/${TRAITRR}-\${network}/ \
+        --go_path ${OUTPUT_DIR}/${TRAITRR}/GO_summaries_alternate/ \
+        --output_path ${OUTPUT_DIR}/${TRAITRR}/results/raw_alternate/ \
+        --network \$network \
+        --threshold \$threshold
+EOF
+)
+        JOB_STAGE2_STEP5_ALTERNATE_ID=$(echo "$JOB_STAGE2_STEP5_ALTERNATE" | awk '{print $4}')
+    else
+        while IFS=$'\t' read -r threshold network; do
+            echo "Threshold $threshold, Network: $network"
+            docker run --rm -v $(pwd):$(pwd) -w $(pwd) -u $(id -u):$(id -g) $container_python /bin/bash -c \
+                "python3 ./scripts/phase2/dc_generate_rp_statistics_alternate.py \
+                    --gene_set_path ${OUTPUT_DIR}/RPscores/${TRAITRR}/ \
+                    --master_summary_path ${OUTPUT_DIR}/${TRAITRR}/master_summary_alternate.csv \
+                    --trait ${TRAITRR} \
+                    --module_path ${OUTPUT_DIR}/${TRAITRR}/enriched_modules/${TRAITRR}-${network}/ \
+                    --go_path ${OUTPUT_DIR}/${TRAITRR}/GO_summaries_alternate/ \
+                    --output_path ${OUTPUT_DIR}/${TRAITRR}/results/raw_alternate/ \
+                    --network $network \
+                    --threshold $threshold"
+        done < $tmpfile
+    fi
+    #rm -rf $tmpfile
+}
+
 print_test_message() {
     echo "
 ########################################
@@ -912,58 +975,40 @@ if [ "$TEST_MODE" = true ]; then
 
             phase2_step4_alternate
 
-            # (5) Generate statistics for random permutation runs
-            echo "# STEP 5: generate statistics for random permutations"
-            # (5.1) TODO: prepare file with bonferroni p-value:network pairs
-            #       TODO: pvalues are fixed at [0.25, 0.2, 0.15, 0.1, 0.05, 0.01, 0.005, 0.001, 0.00005]
-            threshold_network_pairs_alternate=$( readlink -f ./test/slurm_thresholds_maleWC_alternate.txt )
-            while IFS=$'\t' read -r threshold network; do
-                echo "Threshold $threshold, Network: $network"
-                docker run --rm -v $(pwd):$(pwd) -w $(pwd) -u $(id -u):$(id -g) $container_python /bin/bash -c \
-                    "python3 ./scripts/phase2/dc_generate_rp_statistics_alternate.py \
-                        --gene_set_path ${OUTPUT_DIR}/RPscores/${TRAITRR}/ \
-                        --master_summary_path ${OUTPUT_DIR}/${TRAITRR}/master_summary_alternate.csv \
-                        --trait ${TRAITRR} \
-                        --module_path ${OUTPUT_DIR}/${TRAITRR}/enriched_modules/${TRAITRR}-${network}/ \
-                        --go_path ${OUTPUT_DIR}/${TRAITRR}/GO_summaries_alternate/ \
-                        --output_path ${OUTPUT_DIR}/${TRAITRR}/results/raw_alternate/ \
-                        --network $network \
-                        --threshold $threshold"
-            done < $threshold_network_pairs_alternate
-            echo "done"
+            phase2_step5_alternate
 
-            # (6) summarize statistics from original and permutation runs
-            echo "# STEP 6: summarize statistics from original and permutation runs"
-            for network in `ls ${MODULEFILEDIR}/`;
-            do
-                echo "Network: $network"
-                network="${network%.*}" # remove extension
-                docker run --rm -v $(pwd):$(pwd) -w $(pwd) -u $(id -u):$(id -g) $container_python /bin/bash -c \
-                    "python3 ./scripts/phase2/dc_summary_statistics_rp_alternate.py \
-                        --trait $TRAIT \
-                        --input_path $OUTPUT_DIR \
-                        --or_id $TRAIT \
-                        --rr_id $TRAITRR \
-                        --input_file_rr_id $TRAITRR \
-                        --network $network \
-                        --output_path ${OUTPUT_DIR}/${TRAIT}/summary_alternate/"
-            done
+            ## (6) summarize statistics from original and permutation runs
+            #echo "# STEP 6: summarize statistics from original and permutation runs"
+            #for network in `ls ${MODULEFILEDIR}/`;
+            #do
+            #    echo "Network: $network"
+            #    network="${network%.*}" # remove extension
+            #    docker run --rm -v $(pwd):$(pwd) -w $(pwd) -u $(id -u):$(id -g) $container_python /bin/bash -c \
+            #        "python3 ./scripts/phase2/dc_summary_statistics_rp_alternate.py \
+            #            --trait $TRAIT \
+            #            --input_path $OUTPUT_DIR \
+            #            --or_id $TRAIT \
+            #            --rr_id $TRAITRR \
+            #            --input_file_rr_id $TRAITRR \
+            #            --network $network \
+            #            --output_path ${OUTPUT_DIR}/${TRAIT}/summary_alternate/"
+            #done
 
-            # (7) Extract genes that meet FISHNET criteria
-            echo "# STEP 7: Extracting FISHNET genes"
-            for network in `ls ${MODULEFILEDIR}/`;
-            do
-                echo "Network: $network"
-                network="${network%.*}" # remove extension
-                docker run --rm -v $(pwd):$(pwd) -w $(pwd) -u $(id -u):$(id -g) $container_python /bin/bash -c \
-                    "python3 ./scripts/phase2/dc_identify_mea_passing_genes_alternate.py \
-                        --trait $TRAIT \
-                        --geneset_input $PVALFILEDIR \
-                        --FDR_threshold $FDR_THRESHOLD \
-                        --percentile_threshold $PERCENTILE_THRESHOLD \
-                        --network $network \
-                        --input_path ${OUTPUT_DIR}/${TRAIT}/"
-            done
+            ## (7) Extract genes that meet FISHNET criteria
+            #echo "# STEP 7: Extracting FISHNET genes"
+            #for network in `ls ${MODULEFILEDIR}/`;
+            #do
+            #    echo "Network: $network"
+            #    network="${network%.*}" # remove extension
+            #    docker run --rm -v $(pwd):$(pwd) -w $(pwd) -u $(id -u):$(id -g) $container_python /bin/bash -c \
+            #        "python3 ./scripts/phase2/dc_identify_mea_passing_genes_alternate.py \
+            #            --trait $TRAIT \
+            #            --geneset_input $PVALFILEDIR \
+            #            --FDR_threshold $FDR_THRESHOLD \
+            #            --percentile_threshold $PERCENTILE_THRESHOLD \
+            #            --network $network \
+            #            --input_path ${OUTPUT_DIR}/${TRAIT}/"
+            #done
 
         fi
         print_phase_completion 2
