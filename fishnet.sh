@@ -891,6 +891,52 @@ EOF
     fi
 }
 
+phase2_step7_alternate() {
+
+    # (7) Extract genes that meet FISHNET criteria
+    echo "# STEP 7: Extracting FISHNET genes"
+    if [ "$SINGULARITY" = true ]; then
+        tmpfile=$(mktemp --tmpdir="$(pwd)/tmp")
+        ls ${MODULEFILEDIR} > $tmpfile
+        num_networks=$( wc -l < $tmpfile)
+        JOB_STAGE2_STEP7_ALTERNATE=$(sbatch --dependency=afterok:"$JOB_STAGE2_STEP6_ALTERNATE_ID" <<EOF
+#!/bin/bash
+#SBATCH -J phase2_step7_alternate
+#SBATCH --array=1-$num_networks
+#SBATCH --mem-per-cpu=4G
+#SBATCH --cpus-per-task=1
+#SBATCH -o ./logs/phase2_step7_alternate_%A_%a.out
+network=\$( sed -n \${SLURM_ARRAY_TASK_ID}p $tmpfile )
+network="\${network%.*}" # remove extension
+singularity exec --no-home -B $(pwd):$(pwd) --pwd $(pwd) $container_python  \
+    python3 ./scripts/phase2/dc_identify_mea_passing_genes_alternate.py \
+        --trait $TRAIT \
+        --geneset_input $PVALFILEDIR \
+        --FDR_threshold $FDR_THRESHOLD \
+        --percentile_threshold $PERCENTILE_THRESHOLD \
+        --network \$network \
+        --input_path ${OUTPUT_DIR}/${TRAIT}/
+EOF
+)
+        #rm -rf $tmpfile
+        JOB_STAGE2_STEP7_ALTERNATE_ID=$(echo "$JOB_STAGE2_STEP7_ALTERNATE" | awk '{print $4}')
+    else
+        for network in `ls ${MODULEFILEDIR}/`;
+        do
+            echo "Network: $network"
+            network="${network%.*}" # remove extension
+            docker run --rm -v $(pwd):$(pwd) -w $(pwd) -u $(id -u):$(id -g) $container_python /bin/bash -c \
+                "python3 ./scripts/phase2/dc_identify_mea_passing_genes_alternate.py \
+                    --trait $TRAIT \
+                    --geneset_input $PVALFILEDIR \
+                    --FDR_threshold $FDR_THRESHOLD \
+                    --percentile_threshold $PERCENTILE_THRESHOLD \
+                    --network $network \
+                    --input_path ${OUTPUT_DIR}/${TRAIT}/"
+        done
+    fi
+}
+
 print_test_message() {
     echo "
 ########################################
@@ -939,6 +985,16 @@ print_phase1_completion_message() {
         done
     fi
     print_phase_completion 1
+}
+
+print_phase2_completion_message() {
+    if [ "$SINGULARITY" = true ]; then
+    # wait for phase1_step5 to complete
+        while squeue -j "$1" | grep -q "$1"; do
+            sleep 5
+        done
+    fi
+    print_phase_completion 2
 }
 
 nextflow_cleanup() {
@@ -1004,6 +1060,8 @@ if [ "$TEST_MODE" = true ]; then
 
             phase2_step4_default
 
+            print_phase2_completion_message $JOB_STAGE2_STEP4_DEFAULT_ID
+
         else
             ##############################
             ## ALTERNATIVE THRESHOLDING ##
@@ -1026,24 +1084,10 @@ if [ "$TEST_MODE" = true ]; then
 
             phase2_step6_alternate
 
-            ## (7) Extract genes that meet FISHNET criteria
-            #echo "# STEP 7: Extracting FISHNET genes"
-            #for network in `ls ${MODULEFILEDIR}/`;
-            #do
-            #    echo "Network: $network"
-            #    network="${network%.*}" # remove extension
-            #    docker run --rm -v $(pwd):$(pwd) -w $(pwd) -u $(id -u):$(id -g) $container_python /bin/bash -c \
-            #        "python3 ./scripts/phase2/dc_identify_mea_passing_genes_alternate.py \
-            #            --trait $TRAIT \
-            #            --geneset_input $PVALFILEDIR \
-            #            --FDR_threshold $FDR_THRESHOLD \
-            #            --percentile_threshold $PERCENTILE_THRESHOLD \
-            #            --network $network \
-            #            --input_path ${OUTPUT_DIR}/${TRAIT}/"
-            #done
+            phase2_step7_alternate
 
+            print_phase2_completion_message $JOB_STAGE2_STEP7_ALTERNATE_ID
         fi
-        print_phase_completion 2
     fi
     # TODO: reverse the ranks of the original p-values SS --> run OR part of stage 1 --> filter for sig modules
 else
