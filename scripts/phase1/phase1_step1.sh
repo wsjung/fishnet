@@ -8,12 +8,12 @@
 cd $1 # move to master script directory (important to set proper nextflow launchDir)
 
 nextflow run ./scripts/phase1/nextflow/main.nf \
-    --trait $trait \
-    --moduleFileDir $moduleFileDir \
-    --numTests $numTests \
-    --pipeline $trait  \
-    --pvalFileName $pvalFileName \
-    --geneColName $geneColName \
-    --pvalColName $pvalColName  \
-    --bonferroni_alpha $bonferroni_alpha \
+    --trait $TRAIT \
+    --moduleFileDir $MODULEFILEDIR \
+    --numTests $NUMTESTS \
+    --pipeline $TRAIT  \
+    --pvalFileName $PVALFILENAME \
+    --geneColName $GENECOLNAME \
+    --pvalColName $PVALCOLNAME  \
+    --bonferroni_alpha $BONFERRONI_ALPHA \
     -c $NXF_CONFIG

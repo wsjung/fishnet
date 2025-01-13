@@ -8,16 +8,16 @@
 cd $1 # move to master script directory (important to set proper nextflow launchDir)
 
 nextflow run ./scripts/phase1/nextflow/main.nf \
-    --trait ${traitRR} \
-    --moduleFileDir $moduleFileDir \
-    --numTests $numTests \
-    --pipeline ${traitRR}  \
-    --pvalFileName $pvalFileNameRR \
-    --geneColName $geneColName \
-    --pvalColName $pvalColName  \
-    --bonferroni_alpha $bonferroni_alpha \
+    --trait ${TRAITRR} \
+    --moduleFileDir $MODULEFILEDIR \
+    --numTests $NUMTESTS \
+    --pipeline ${TRAITRR}  \
+    --pvalFileName $PVALFILENAMERR \
+    --geneColName $GENECOLNAME \
+    --pvalColName $PVALCOLNAME  \
+    --bonferroni_alpha $BONFERRONI_ALPHA \
     --random_permutation \
-    --numRP $num_permutations \
+    --numRP $NUM_PERMUTATIONS \
     --GO_summaries_path "GO_summaries_RP" \
     --masterSummaries_path "masterSummaries_RP" \
     -c $NXF_CONFIG
