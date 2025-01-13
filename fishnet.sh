@@ -544,6 +544,39 @@ EOT
     fi
 }
 
+phase2_step1_alternate() {
+
+    # (1) generate background gene sets for GO analysis
+    echo "# STEP 1: generating background gene sets for GO analysis"
+    if [ "$SINGULARITY" = true ]; then
+    JOB_STAGE2_STEP1_ALTERNATE=$(sbatch <<EOT
+#!/bin/bash
+#SBATCH -J phase2_step1_alternate
+#SBATCH --mem-per-cpu=4G
+#SBATCH --cpus-per-task=1
+#SBATCH -o ./logs/phase2_step1_alternate_%J.out
+singularity exec --no-home -B $(pwd):$(pwd) --pwd $(pwd) $container_python \
+    python3 ./scripts/phase2/dc_fishnet_background_genes.py \
+        --genes_filepath $PVALFILENAMERR \
+        --module_filepath $MODULEFILEDIR \
+        --output_filepath ${OUTPUT_DIR}/${TRAIT}/
+# (1.1) copy background genes to permutation directory
+cp -r ${OUTPUT_DIR}/${TRAIT}/background_genes/ ${OUTPUT_DIR}/${TRAITRR}/
+EOT
+)
+        JOB_STAGE2_STEP1_ALTERNATE_ID=$(echo "$JOB_STAGE2_STEP1_ALTERNATE" | awk '{print $4}')
+    else
+        docker run --rm -v $(pwd):$(pwd) -w $(pwd) -u $(id -u):$(id -g) $container_python /bin/bash -c \
+            "python3 ./scripts/phase2/dc_fishnet_background_genes.py \
+                --genes_filepath $PVALFILENAMERR \
+                --module_filepath $MODULEFILEDIR \
+                --output_filepath ${OUTPUT_DIR}/${TRAIT}/"
+        # (1.1) copy background genes to permutation directory
+        cp -r ${OUTPUT_DIR}/${TRAIT}/background_genes/ ${OUTPUT_DIR}/${TRAITRR}/
+    fi
+
+}
+
 print_test_message() {
     echo "
 ########################################
@@ -613,17 +646,17 @@ if [ "$TEST_MODE" = true ]; then
         ###############
         print_phase_message 1
 
-        #phase1_step1
+        phase1_step1
 
-        #phase1_step2
+        phase1_step2
 
-        #phase1_step3
+        phase1_step3
 
-        #phase1_step5
+        phase1_step5
 
-        #print_phase1_completion_message
+        print_phase1_completion_message
 
-        #nextflow_cleanup
+        nextflow_cleanup
     fi
 
     if [ "$SKIP_STAGE_2" = true ]; then
@@ -663,16 +696,7 @@ if [ "$TEST_MODE" = true ]; then
             ##############################
             print_alternative_thresholding_message
 
-            # (1) generate background gene sets for GO analysis
-            echo "# STEP 1: generating background gene sets for GO analysis"
-            docker run --rm -v $(pwd):$(pwd) -w $(pwd) -u $(id -u):$(id -g) $container_python /bin/bash -c \
-                "python3 ./scripts/phase2/dc_fishnet_background_genes.py \
-                    --genes_filepath $PVALFILENAMERR \
-                    --module_filepath $MODULEFILEDIR \
-                    --output_filepath ${OUTPUT_DIR}/${TRAIT}/"
-
-            # (1.1) copy background genes to permutation directory
-            cp -r ${OUTPUT_DIR}/${TRAIT}/background_genes/ ${OUTPUT_DIR}/${TRAITRR}/
+            phase2_step1_alternate
 
             # (2) Extract and save module genes as individual files for modules that satisfy Bonferroni 0.25
             echo "# STEP 2: extract and save modules that satisfy Bonferroni threshold"
