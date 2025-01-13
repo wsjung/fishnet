@@ -844,6 +844,53 @@ EOF
     #rm -rf $tmpfile
 }
 
+phase2_step6_alternate() {
+
+    # (6) summarize statistics from original and permutation runs
+    echo "# STEP 6: summarize statistics from original and permutation runs"
+    if [ "$SINGULARITY" = true ]; then
+        tmpfile=$(mktemp --tmpdir="$(pwd)/tmp")
+        ls ${MODULEFILEDIR} > $tmpfile
+        num_networks=$( wc -l < $tmpfile)
+        JOB_STAGE2_STEP6_ALTERNATE=$(sbatch --dependency=afterok:"$JOB_STAGE2_STEP4_ALTERNATE_ID","$JOB_STAGE2_STEP5_ALTERNATE_ID" <<EOF
+#!/bin/bash
+#SBATCH -J phase2_step6_alternate
+#SBATCH --array=1-$num_networks
+#SBATCH --mem-per-cpu=4G
+#SBATCH --cpus-per-task=1
+#SBATCH -o ./logs/phase2_step6_alternate_%A_%a.out
+network=\$( sed -n \${SLURM_ARRAY_TASK_ID}p $tmpfile )
+network="\${network%.*}" # remove extension
+singularity exec --no-home -B $(pwd):$(pwd) --pwd $(pwd) $container_python  \
+    python3 ./scripts/phase2/dc_summary_statistics_rp_alternate.py \
+        --trait $TRAIT \
+        --input_path $OUTPUT_DIR \
+        --or_id $TRAIT \
+        --rr_id $TRAITRR \
+        --input_file_rr_id $TRAITRR \
+        --network \$network \
+        --output_path ${OUTPUT_DIR}/${TRAIT}/summary_alternate/
+EOF
+)
+        JOB_STAGE2_STEP6_ALTERNATE_ID=$(echo "$JOB_STAGE2_STEP6_ALTERNATE" | awk '{print $4}')
+    else
+        for network in `ls ${MODULEFILEDIR}/`;
+        do
+            echo "Network: $network"
+            network="${network%.*}" # remove extension
+            docker run --rm -v $(pwd):$(pwd) -w $(pwd) -u $(id -u):$(id -g) $container_python /bin/bash -c \
+                "python3 ./scripts/phase2/dc_summary_statistics_rp_alternate.py \
+                    --trait $TRAIT \
+                    --input_path $OUTPUT_DIR \
+                    --or_id $TRAIT \
+                    --rr_id $TRAITRR \
+                    --input_file_rr_id $TRAITRR \
+                    --network $network \
+                    --output_path ${OUTPUT_DIR}/${TRAIT}/summary_alternate/"
+        done
+    fi
+}
+
 print_test_message() {
     echo "
 ########################################
@@ -977,22 +1024,7 @@ if [ "$TEST_MODE" = true ]; then
 
             phase2_step5_alternate
 
-            ## (6) summarize statistics from original and permutation runs
-            #echo "# STEP 6: summarize statistics from original and permutation runs"
-            #for network in `ls ${MODULEFILEDIR}/`;
-            #do
-            #    echo "Network: $network"
-            #    network="${network%.*}" # remove extension
-            #    docker run --rm -v $(pwd):$(pwd) -w $(pwd) -u $(id -u):$(id -g) $container_python /bin/bash -c \
-            #        "python3 ./scripts/phase2/dc_summary_statistics_rp_alternate.py \
-            #            --trait $TRAIT \
-            #            --input_path $OUTPUT_DIR \
-            #            --or_id $TRAIT \
-            #            --rr_id $TRAITRR \
-            #            --input_file_rr_id $TRAITRR \
-            #            --network $network \
-            #            --output_path ${OUTPUT_DIR}/${TRAIT}/summary_alternate/"
-            #done
+            phase2_step6_alternate
 
             ## (7) Extract genes that meet FISHNET criteria
             #echo "# STEP 7: Extracting FISHNET genes"
