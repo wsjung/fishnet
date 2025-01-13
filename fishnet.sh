@@ -577,6 +577,68 @@ EOT
 
 }
 
+phase2_step2_original_alternate() {
+
+    # (2) Extract and save module genes as individual files for modules that satisfy Bonferroni 0.25
+    echo "# STEP 2.1: extract and save modules that satisfy Bonferroni threshold (original run)"
+    # (2.1) original run
+    if [ "$SINGULARITY" = true ]; then
+        JOB_STAGE2_STEP2_ORIGINAL_ALTERNATE=$(sbatch --dependency=afterok:"$JOB_STAGE2_STEP1_ALTERNATE_ID" <<EOT
+#!/bin/bash
+#SBATCH -J phase2_step2_original_alternate
+#SBATCH --mem-per-cpu=4G
+#SBATCH --cpus-per-task=1
+#SBATCH -o ./logs/phase2_step2_original_alternate_%J.out
+singularity exec --no-home -B $(pwd):$(pwd) --pwd $(pwd) $container_python \
+    python3 ./scripts/phase2/dc_fishnet_module_genes.py \
+        --genes_filepath $PVALFILENAMERR \
+        --module_filepath $MODULEFILEDIR \
+        --master_summary_path ${OUTPUT_DIR}/${TRAIT}/ \
+        --study $TRAIT
+EOT
+)
+        JOB_STAGE2_STEP2_ORIGINAL_ALTERNATE_ID=$(echo "$JOB_STAGE2_STEP2_ORIGINAL_ALTERNATE" | awk '{print $4}')
+    else
+        docker run --rm -v $(pwd):$(pwd) -w $(pwd) -u $(id -u):$(id -g) $container_python /bin/bash -c \
+            "python3 ./scripts/phase2/dc_fishnet_module_genes.py \
+                --genes_filepath $PVALFILENAMERR \
+                --module_filepath $MODULEFILEDIR \
+                --master_summary_path ${OUTPUT_DIR}/${TRAIT}/ \
+                --study $TRAIT"
+    fi
+}
+
+phase2_step2_permutation_alternate() {
+
+    # (2) Extract and save module genes as individual files for modules that satisfy Bonferroni 0.25
+    echo "# STEP 2.2: extract and save modules that satisfy Bonferroni threshold (permutation run)"
+    # (2.2) permutation run
+    if [ "$SINGULARITY" = true ]; then
+        JOB_STAGE2_STEP2_PERMUTATION_ALTERNATE=$(sbatch --dependency=afterok:"$JOB_STAGE2_STEP1_ALTERNATE_ID" <<EOT
+#!/bin/bash
+#SBATCH -J phase2_step2_permutation_alternate
+#SBATCH --mem-per-cpu=4G
+#SBATCH --cpus-per-task=1
+#SBATCH -o ./logs/phase2_step2_permutation_alternate_%J.out
+singularity exec --no-home -B $(pwd):$(pwd) --pwd $(pwd) $container_python \
+    python3 ./scripts/phase2/dc_fishnet_module_genes.py \
+        --genes_filepath $PVALFILENAMERR \
+        --module_filepath $MODULEFILEDIR \
+        --master_summary_path ${OUTPUT_DIR}/${TRAITRR}/ \
+        --study $TRAITRR
+EOT
+)
+        JOB_STAGE2_STEP2_PERMUTATION_ALTERNATE_ID=$(echo "$JOB_STAGE2_STEP2_PERMUTATION_ALTERNATE" | awk '{print $4}')
+    else
+        docker run --rm -v $(pwd):$(pwd) -w $(pwd) -u $(id -u):$(id -g) $container_python /bin/bash -c \
+            "python3 ./scripts/phase2/dc_fishnet_module_genes.py \
+                --genes_filepath $PVALFILENAMERR \
+                --module_filepath $MODULEFILEDIR \
+                --master_summary_path ${OUTPUT_DIR}/${TRAITRR}/ \
+                --study $TRAITRR"
+    fi
+}
+
 print_test_message() {
     echo "
 ########################################
@@ -698,24 +760,9 @@ if [ "$TEST_MODE" = true ]; then
 
             phase2_step1_alternate
 
-            # (2) Extract and save module genes as individual files for modules that satisfy Bonferroni 0.25
-            echo "# STEP 2: extract and save modules that satisfy Bonferroni threshold"
-            # (2.1) original run
-            echo " - original run"
-            docker run --rm -v $(pwd):$(pwd) -w $(pwd) -u $(id -u):$(id -g) $container_python /bin/bash -c \
-                "python3 ./scripts/phase2/dc_fishnet_module_genes.py \
-                    --genes_filepath $PVALFILENAMERR \
-                    --module_filepath $MODULEFILEDIR \
-                    --master_summary_path ${OUTPUT_DIR}/${TRAIT}/ \
-                    --study $TRAIT"
-            # (2.1) permutation run
-            echo " - permutation run"
-            docker run --rm -v $(pwd):$(pwd) -w $(pwd) -u $(id -u):$(id -g) $container_python /bin/bash -c \
-                "python3 ./scripts/phase2/dc_fishnet_module_genes.py \
-                    --genes_filepath $PVALFILENAMERR \
-                    --module_filepath $MODULEFILEDIR \
-                    --master_summary_path ${OUTPUT_DIR}/${TRAITRR}/ \
-                    --study $TRAITRR"
+            phase2_step2_original_alternate
+
+            phase2_step2_permutation_alternate
 
             # (3) Run GO analysis
             echo "# STEP 3: running GO analysis"
