@@ -8,3 +8,4 @@ results*/
 *.sbatch
 logs/
 test/maleWCRR
+test_*.sh
