@@ -28,6 +28,9 @@ Usage: fishnet.sh [options]
     --singularity
         Configures containers to run using singularity
         Default: false (runs containers using docker)
+    --nxf_config <path/to/nxf.config>
+        Specify a custom nextflow config to use
+        Default: ./conf/fishnet.config using docker, ./conf/fishnet_slurm.config using singularity on SLURM
 EOF
 }
 
@@ -38,6 +41,11 @@ THRESHOLDING_MODE_DEFAULT="default"
 THRESHOLDING_MODE_ALTERNATIVE="alternative"
 THRESHOLDING_MODE=$THRESHOLDING_MODE_DEFAULT
 SINGULARITY=false
+CONTAINER_RUNTIME="DOCKER"
+NXF_CONFIG_DEFAULT_DOCKER="./conf/fishnet.config"
+NXF_CONFIG_DEFAULT_SINGULARITY="./conf/fishnet_slurm.config"
+NXF_CONFIG="$NXF_CONFIG_DEFAULT_DOCKER"
+nxf_config_provided=false
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -63,7 +71,19 @@ while [[ $# -gt 0 ]]; do
             ;;
         --singularity)
             SINGULARITY=true
+            CONTAINER_RUNTIME="SINGULARITY"
             shift
+            ;;
+        --nxf_config)
+            # make sure we have a value and not another flag
+            if [[ -n "$2" && ! "$2" =~ ^- ]]; then
+                NXF_CONFIG="$2"
+                nxf_config_provided=true
+                shift 2
+            else
+                echo "ERROR: --nxf_config requires a path argument."
+                exit 1
+            fi
             ;;
         *)
             echo "ERROR: Unknown option $1"
@@ -79,6 +99,26 @@ if [ "$SKIP_STAGE_1" = true ] && [ "$SKIP_STAGE_2" = true ]; then
     exit 0
 fi
 
+# check for singularity
+if [ "$SINGULARITY" = true ]; then
+    # if singularity requested, but user did not specify --nxf_config
+    if [ "$nxf_config_provided" = false ]; then
+        NXF_CONFIG="$NXF_CONFIG_DEFAULT_SINGULARITY"
+    fi
+fi
+
+# print configs
+echo "Configs:"
+echo " - container run-time: $CONTAINER_RUNTIME"
+if [ "$CONTAINER_RUNTIME" = "SINGULARITY" ]; then
+    singularity --version
+else
+    docker --version
+fi
+echo " - nextflow config: $NXF_CONFIG"
+
+
+### TEST CONFIG ENTRYPOINT ###
 if [ "$TEST_MODE" = true ]; then
     echo "
 ########################################
