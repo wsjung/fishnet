@@ -406,7 +406,7 @@ phase2_step2_default() {
     if [ "$SINGULARITY" = true ]; then
         # TODO: reference the threshold:network pairs created in step 2.1
         num_pairs=$( wc -l < $threshold_network_pairs )
-        JOB_STAGE2_STEP2_DEFAULT=$(sbatch <<EOT
+        JOB_STAGE2_STEP2_DEFAULT=$(sbatch --dependency=afterok:"$JOB_STAGE2_STEP1_DEFAULT_ID" <<EOT
 #!/bin/bash
 #SBATCH -J phase2_step2_default
 #SBATCH --array=1-$num_pairs
@@ -446,6 +446,54 @@ EOT
                     --num_permutations $NUM_PERMUTATIONS"
         done < $threshold_network_pairs
    fi
+}
+
+phase2_step3_default() {
+    # (3) summarize statistics
+    echo "# STEP 2.3: summarizing statistics"
+    if [ "$SINGULARITY" = true ]; then
+        tmpfile=$(mktemp --tmpdir="$(pwd)/tmp")
+        ls ${MODULEFILEDIR} > $tmpfile
+        num_networks=$( wc -l < $tmpfile)
+        JOB_STAGE2_STEP3_DEFAULT=$(sbatch --dependency=afterok:"$JOB_STAGE2_STEP2_DEFAULT_ID" <<EOT
+#!/bin/bash
+#SBATCH -J phase2_step3_default
+#SBATCH --array=1-$num_networks
+#SBATCH --mem-per-cpu=4G
+#SBATCH --cpus-per-task=1
+#SBATCH -o ./logs/phase2_step3_default_%A_%a.out
+network=\$( sed -n \${SLURM_ARRAY_TASK_ID}p $tmpfile )
+network="\${network%.*}" # remove extension
+echo "Network: \$network"
+singularity exec --no-home -B $(pwd):$(pwd) --pwd $(pwd) $container_python \
+    python3 ./scripts/phase2/dc_summary_statistics_rp.py \
+        --trait $TRAIT \
+        --input_path $OUTPUT_DIR \
+        --or_id $TRAIT \
+        --rr_id $TRAITRR \
+        --input_file_rr_id $TRAITRR \
+        --network \$network \
+        --output_path ${OUTPUT_DIR}/${TRAIT}/summary/
+EOT
+)
+        #rm $tmpfile
+        JOB_STAGE2_STEP3_DEFAULT_ID=$(echo "$JOB_STAGE2_STEP3_DEFAULT" | awk '{print $4}')
+    else
+        for network in `ls ${MODULEFILEDIR}/`;
+        do
+            echo "Network: $network"
+            network="${network%.*}" # remove extension
+            docker run --rm -v $(pwd):$(pwd) -w $(pwd) -u $(id -u):$(id -g) $container_python /bin/bash -c \
+                "python3 ./scripts/phase2/dc_summary_statistics_rp.py \
+                    --trait $TRAIT \
+                    --input_path $OUTPUT_DIR \
+                    --or_id $TRAIT \
+                    --rr_id ${TRAITRR} \
+                    --input_file_rr_id ${TRAITRR} \
+                    --network $network \
+                    --output_path ${OUTPUT_DIR}/${TRAIT}/summary/"
+        done
+    fi
 }
 
 print_test_message() {
@@ -557,22 +605,7 @@ if [ "$TEST_MODE" = true ]; then
 
             phase2_step2_default
 
-            ## (3) summarize statistics
-            #echo "# STEP 2.3: summarizing statistics"
-            #for network in `ls ${MODULEFILEDIR}/`;
-            #do
-            #    echo "Network: $network"
-            #    network="${network%.*}" # remove extension
-            #    docker run --rm -v $(pwd):$(pwd) -w $(pwd) -u $(id -u):$(id -g) $container_python /bin/bash -c \
-            #        "python3 ./scripts/phase2/dc_summary_statistics_rp.py \
-            #            --trait $TRAIT \
-            #            --input_path $OUTPUT_DIR \
-            #            --or_id $TRAIT \
-            #            --rr_id ${TRAITRR} \
-            #            --input_file_rr_id ${TRAITRR} \
-            #            --network $network \
-            #            --output_path ${OUTPUT_DIR}/${TRAIT}/summary/"
-            #done
+            phase2_step3_default
 
             ## (4) identify MEA passing genes
             #echo "# STEP 2.4: identify MEA-passing genes"
