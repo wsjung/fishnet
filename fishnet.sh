@@ -503,9 +503,7 @@ phase2_step4_default() {
         tmpfile=$(mktemp --tmpdir="$(pwd)/tmp")
         ls ${MODULEFILEDIR} > $tmpfile
         num_networks=$( wc -l < $tmpfile)
-        #JOB_STAGE2_STEP4_DEFAULT=$(sbatch --dependency=afterok:"$JOB_STAGE2_STEP2_DEFAULT_ID" <<EOT
-        # TODO: add dependency after testing
-        JOB_STAGE2_STEP4_DEFAULT=$(sbatch <<EOT
+        JOB_STAGE2_STEP4_DEFAULT=$(sbatch --dependency=afterok:"$JOB_STAGE2_STEP2_DEFAULT_ID" <<EOT
 #!/bin/bash
 #SBATCH -J phase2_step4_default
 #SBATCH --array=1-$num_networks
@@ -639,6 +637,99 @@ EOT
     fi
 }
 
+phase2_step3_original_alternate() {
+
+    # (3) Run GO analysis
+    echo "# STEP 3.1: running GO analysis (original run)"
+    # (3.1) original run
+    set +e
+    if [ "$SINGULARITY" = true ]; then
+        tmpfile=$(mktemp --tmpdir="$(pwd)/tmp")
+        ls ${MODULEFILEDIR} > $tmpfile
+        num_networks=$( wc -l < $tmpfile)
+        JOB_STAGE2_STEP3_ORIGINAL_ALTERNATE=$(sbatch --dependency=afterok:"$JOB_STAGE2_STEP2_ORIGINAL_ALTERNATE_ID" <<EOT
+#!/bin/bash
+#SBATCH -J phase2_step3_original_alternate
+#SBATCH --array=1-$num_networks
+#SBATCH --mem-per-cpu=4G
+#SBATCH --cpus-per-task=1
+#SBATCH -o ./logs/phase2_step3_original_alternate_%A_%a.out
+network=\$( sed -n \${SLURM_ARRAY_TASK_ID}p $tmpfile )
+network="\${network%.*}" # remove extension
+echo "Network: \$network"
+singularity exec --no-home -B $(pwd):$(pwd) --pwd $(pwd) $container_R \
+    Rscript ./scripts/phase2/dc_ORA_cmd.R \
+        --sigModuleDir ${OUTPUT_DIR}/${TRAIT}/enriched_modules/${TRAIT}-\${network}/ \
+        --backGroundGenesFile ${OUTPUT_DIR}/${TRAIT}/background_genes/${MODULE_ALGO}-\${network}.txt \
+        --summaryRoot ${OUTPUT_DIR}/${TRAIT}/GO_summaries_alternate/ \
+        --reportRoot ${OUTPUT_DIR}/${TRAIT}/report_sumamries_alternate/
+EOT
+)
+        #rm $tmpfile
+        JOB_STAGE2_STEP3_ORIGINAL_ALTERNATE_ID=$(echo "$JOB_STAGE2_STEP3_ORIGINAL_ALTERNATE" | awk '{print $4}')
+    else
+        for network in `ls ${MODULEFILEDIR}/`;
+        do
+            echo "Network: $network"
+            network="${network%.*}" # remove extension
+            docker run --rm -v $(pwd):$(pwd) -w $(pwd) -u $(id -u):$(id -g) $container_R /bin/bash -c \
+                "Rscript ./scripts/phase2/dc_ORA_cmd.R \
+                    --sigModuleDir ${OUTPUT_DIR}/${TRAIT}/enriched_modules/${TRAIT}-${network}/ \
+                    --backGroundGenesFile ${OUTPUT_DIR}/${TRAIT}/background_genes/${MODULE_ALGO}-${network}.txt \
+                    --summaryRoot ${OUTPUT_DIR}/${TRAIT}/GO_summaries_alternate/ \
+                    --reportRoot ${OUTPUT_DIR}/${TRAIT}/report_sumamries_alternate/"
+        done
+    fi
+    set -e
+}
+
+phase2_step3_permutation_alternate() {
+
+    # (3) Run GO analysis
+    echo "# STEP 3.1: running GO analysis (permutation run)"
+    # (3.2) permutation run
+    set +e
+    if [ "$SINGULARITY" = true ]; then
+        tmpfile=$(mktemp --tmpdir="$(pwd)/tmp")
+        ls ${MODULEFILEDIR} > $tmpfile
+        num_networks=$( wc -l < $tmpfile)
+        JOB_STAGE2_STEP3_PERMUTATION_ALTERNATE=$(sbatch --dependency=afterok:"$JOB_STAGE2_STEP2_PERMUTATION_ALTERNATE_ID" <<EOT
+#!/bin/bash
+#SBATCH -J phase2_step3_permutation_alternate
+#SBATCH --array=1-$num_networks
+#SBATCH --mem-per-cpu=4G
+#SBATCH --cpus-per-task=1
+#SBATCH -o ./logs/phase2_step3_permutation_alternate_%A_%a.out
+network=\$( sed -n \${SLURM_ARRAY_TASK_ID}p $tmpfile )
+network="\${network%.*}" # remove extension
+echo "Network: \$network"
+singularity exec --no-home -B $(pwd):$(pwd) --pwd $(pwd) $container_R \
+    Rscript ./scripts/phase2/dc_ORA_cmd.R \
+        --sigModuleDir ${OUTPUT_DIR}/${TRAITRR}/enriched_modules/${TRAITRR}-\${network}/ \
+        --backGroundGenesFile ${OUTPUT_DIR}/${TRAITRR}/background_genes/${MODULE_ALGO}-\${network}.txt \
+        --summaryRoot ${OUTPUT_DIR}/${TRAITRR}/GO_summaries_alternate/ \
+        --reportRoot ${OUTPUT_DIR}/${TRAITRR}/report_sumamries_alternate/
+EOT
+)
+        #rm $tmpfile
+        JOB_STAGE2_STEP3_PERMUTATION_ALTERNATE_ID=$(echo "$JOB_STAGE2_STEP3_PERMUTATION_ALTERNATE" | awk '{print $4}')
+    else
+        for network in `ls ${MODULEFILEDIR}/`;
+        do
+            echo "Network: $network"
+            network="${network%.*}" # remove extension
+            docker run --rm -v $(pwd):$(pwd) -w $(pwd) -u $(id -u):$(id -g) $container_R /bin/bash -c \
+                "Rscript ./scripts/phase2/dc_ORA_cmd.R \
+                    --sigModuleDir ${OUTPUT_DIR}/${TRAITRR}/enriched_modules/${TRAITRR}-${network}/ \
+                    --backGroundGenesFile ${OUTPUT_DIR}/${TRAITRR}/background_genes/${MODULE_ALGO}-${network}.txt \
+                    --summaryRoot ${OUTPUT_DIR}/${TRAITRR}/GO_summaries_alternate/ \
+                    --reportRoot ${OUTPUT_DIR}/${TRAITRR}/report_sumamries_alternate/"
+
+        done
+    fi
+    set -e
+}
+
 print_test_message() {
     echo "
 ########################################
@@ -764,40 +855,9 @@ if [ "$TEST_MODE" = true ]; then
 
             phase2_step2_permutation_alternate
 
-            # (3) Run GO analysis
-            echo "# STEP 3: running GO analysis"
-            # (3.1) original run
-            echo " - original run"
-            set +e
-            for network in `ls ${MODULEFILEDIR}/`;
-            do
-                echo "Network: $network"
-                network="${network%.*}" # remove extension
-                docker run --rm -v $(pwd):$(pwd) -w $(pwd) -u $(id -u):$(id -g) $container_R /bin/bash -c \
-                    "Rscript ./scripts/phase2/dc_ORA_cmd.R \
-                        --sigModuleDir ${OUTPUT_DIR}/${TRAIT}/enriched_modules/${TRAIT}-${network}/ \
-                        --backGroundGenesFile ${OUTPUT_DIR}/${TRAIT}/background_genes/${MODULE_ALGO}-${network}.txt \
-                        --summaryRoot ${OUTPUT_DIR}/${TRAIT}/GO_summaries_alternate/ \
-                        --reportRoot ${OUTPUT_DIR}/${TRAIT}/report_sumamries_alternate/"
+            phase2_step3_original_alternate
 
-            done
-            set -e
-            # (3.2) permutation run
-            echo " - permutation run"
-            set +e
-            for network in `ls ${MODULEFILEDIR}/`;
-            do
-                echo "Network: $network"
-                network="${network%.*}" # remove extension
-                docker run --rm -v $(pwd):$(pwd) -w $(pwd) -u $(id -u):$(id -g) $container_R /bin/bash -c \
-                    "Rscript ./scripts/phase2/dc_ORA_cmd.R \
-                        --sigModuleDir ${OUTPUT_DIR}/${TRAITRR}/enriched_modules/${TRAITRR}-${network}/ \
-                        --backGroundGenesFile ${OUTPUT_DIR}/${TRAITRR}/background_genes/${MODULE_ALGO}-${network}.txt \
-                        --summaryRoot ${OUTPUT_DIR}/${TRAITRR}/GO_summaries_alternate/ \
-                        --reportRoot ${OUTPUT_DIR}/${TRAITRR}/report_sumamries_alternate/"
-
-            done
-            set -e
+            phase2_step3_permutation_alternate
 
             # (4) Generate statistics for original gene-level p-values
             echo "# STEP 4: generate statistics for original gene-level p-values"
