@@ -44,7 +44,7 @@ SINGULARITY=false
 CONTAINER_RUNTIME="DOCKER"
 NXF_CONFIG_DEFAULT_DOCKER="./conf/fishnet.config"
 NXF_CONFIG_DEFAULT_SINGULARITY="./conf/fishnet_slurm.config"
-NXF_CONFIG="$NXF_CONFIG_DEFAULT_DOCKER"
+export NXF_CONFIG="$NXF_CONFIG_DEFAULT_DOCKER"
 nxf_config_provided=false
 
 while [[ $# -gt 0 ]]; do
@@ -128,28 +128,28 @@ if [ "$TEST_MODE" = true ]; then
     "
 
     ### test parameters ###
-    trait="maleWC"
-    traitRR="${trait}RR"
-    num_permutations="10"
-    pvalFileDir=./test/${trait}/
-    pvalFileName=${pvalFileDir}/0-${trait}.csv
-    pvalFileNameRR="./test/${traitRR}/${traitRR}.csv"
-    module_algo="ker_based"
-    moduleFileDir=./test/${module_algo}/
-    numTests=$(( $(wc -l < "$pvalFileName") - 1 ))
-    geneColName="Genes"
-    pvalColName="p_vals"
-    bonferroni_alpha="0.05"
-    output_dir=./results/
-    FDR_threshold=0.05 # TODO: add as input argument
-    percentile_threshold=0.99 # TODO: add as input argument
+    export trait="maleWC"
+    export traitRR="${trait}RR"
+    export num_permutations="10"
+    export pvalFileDir=$( readlink -f ./test/${trait} )
+    export pvalFileName=${pvalFileDir}/0-${trait}.csv
+    export pvalFileNameRR=$( readlink -f ./test/${traitRR}/${traitRR}.csv )
+    export module_algo="ker_based"
+    export moduleFileDir=$( readlink -f ./test/${module_algo}/ )
+    export numTests=$(( $(wc -l < "$pvalFileName") - 1 ))
+    export geneColName="Genes"
+    export pvalColName="p_vals"
+    export bonferroni_alpha="0.05"
+    export output_dir=./results/
+    export FDR_threshold=0.05 # TODO: add as input argument
+    export percentile_threshold=0.99 # TODO: add as input argument
 
     ### list of containers ###
     # contains all python dependencies for fishnet
     #   TODO: create single container with all python dependencies (include statsmodels)
     #   TODO: add to biocontainers 
-    container_python="jungwooseok/dc_rp_genes:1.0"
-    container_R="jungwooseok/r-webgestaltr:1.0"
+    export container_python="jungwooseok/dc_rp_genes:1.0"
+    export container_R="jungwooseok/r-webgestaltr:1.0"
 
     if [ "$SKIP_STAGE_1" = true ]; then
         echo "Skipping STAGE 1"
@@ -164,25 +164,26 @@ if [ "$TEST_MODE" = true ]; then
         "
         # (1) nextflow original run
         echo "# STEP 1.1: executing Nextflow MEA pipeline on original run"
-        nextflow run ./scripts/phase1/nextflow/main.nf \
-            --trait $trait \
-            --moduleFileDir $moduleFileDir \
-            --numTests $numTests \
-            --pipeline $trait  \
-            --pvalFileName $pvalFileName \
-            --geneColName $geneColName \
-            --pvalColName $pvalColName  \
-            --bonferroni_alpha $bonferroni_alpha \
-            -c conf/fishnet.config
-
+        if [ "$SINGULARITY" = true ]; then
+            JOB_STAGE1_STEP1=$(sbatch ./scripts/phase1/phase1_step1.sh $(pwd))
+            JOB_STAGE1_STEP1_ID=$(echo "$JOB_STAGE1_STEP1" | awk '{print $4}')
+            echo $JOB_STAGE1_STEP1_ID
+        else
+            ./scripts/phase1/phase1_step1.sh $(pwd)
+        fi
 
         # (2) generate uniform p-values
         echo "# STEP 1.2: generating uniformly distributed p-values"
-        docker run --rm -v $(pwd):$(pwd) -w $(pwd) -u $(id -u):$(id -g) $container_python  /bin/bash -c \
-            "python3 ./scripts/phase1/generate_uniform_pvals.py \
-            --genes_filepath $pvalFileName"
-        echo "done"
-
+        if [ "$SINGULARITY" = true ]; then
+            singularity exec -B $(pwd):$(pwd) --pwd $(pwd) $container_python \
+                python3 ./scripts/phase1/generate_uniform_pvals.py \
+                    --genes_filepath $pvalFileName
+        else
+            docker run --rm -v $(pwd):$(pwd) -w $(pwd) -u $(id -u):$(id -g) $container_python  /bin/bash -c \
+                "python3 ./scripts/phase1/generate_uniform_pvals.py \
+                --genes_filepath $pvalFileName"
+        fi
+        echo "done" 
 
         # (3) nextflow random permutation run
         echo "# STEP 1.3: executing Nextflow MEA pipeline on random permutations"
@@ -200,27 +201,43 @@ if [ "$TEST_MODE" = true ]; then
             --numRP $num_permutations \
             --GO_summaries_path "GO_summaries_RP" \
             --masterSummaries_path "masterSummaries_RP" \
-            -c conf/fishnet.config \
+            -c $NXF_CONFIG
 
         # (4) compile results
         echo "# STEP 4: compiling results"
         # (4.1) original
         echo "# STEP 4.1: original results"
         summaries_path_original="${output_dir}/masterSummaries/summaries/"
-        docker run --rm -v $(pwd):$(pwd) -w $(pwd) -u $(id -u):$(id -g) $container_python /bin/bash -c \
-            "python3 ./scripts/phase1/compile_results.py \
-                --dirPath $summaries_path_original \
-                --identifier $trait \
-                --output $output_dir"
+        if [ "$SINGULARITY" = true ]; then
+            singularity exec -B $(pwd):$(pwd) --pwd $(pwd) $container_python \
+                python3 ./scripts/phase1/compile_results.py \
+                    --dirPath $summaries_path_original \
+                    --identifier $trait \
+                    --output $output_dir
+        else
+            docker run --rm -v $(pwd):$(pwd) -w $(pwd) -u $(id -u):$(id -g) $container_python /bin/bash -c \
+                "python3 ./scripts/phase1/compile_results.py \
+                    --dirPath $summaries_path_original \
+                    --identifier $trait \
+                    --output $output_dir"
+        fi
 
         # (4.2) random permutation
         echo "# STEP 4.2: permutation results"
         summaries_path_permutation="${output_dir}/masterSummaries_RP/summaries/"
-        docker run --rm -v $(pwd):$(pwd) -w $(pwd) -u $(id -u):$(id -g) $container_python /bin/bash -c \
-            "python3 ./scripts/phase1/compile_results.py \
-                --dirPath $summaries_path_permutation \
-                --identifier ${traitRR} \
-                --output $output_dir"
+        if [ "$SINGULARITY" = true ]; then
+            singularity exec -B $(pwd):$(pwd) --pwd $(pwd) $container_python \
+                python3 ./scripts/phase1/compile_results.py \
+                    --dirPath $summaries_path_permutation \
+                    --identifier ${traitRR} \
+                    --output $output_dir
+        else
+            docker run --rm -v $(pwd):$(pwd) -w $(pwd) -u $(id -u):$(id -g) $container_python /bin/bash -c \
+                "python3 ./scripts/phase1/compile_results.py \
+                    --dirPath $summaries_path_permutation \
+                    --identifier ${traitRR} \
+                    --output $output_dir"
+        fi
         echo "done"
 
         # (5) organize phase 1 results
