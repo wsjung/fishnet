@@ -397,6 +397,57 @@ EOT
     fi
 }
 
+phase2_step2_default() {
+
+    # (2.2) generate statistics for permutation run
+    echo "# STEP 2.2: generating statistics for permutation runs"
+    genes_rpscores_filedir="./results/RPscores/${TRAITRR}/"
+    threshold_network_pairs=$( readlink -f ./test/slurm_thresholds_maleWC.txt )
+    if [ "$SINGULARITY" = true ]; then
+        # TODO: reference the threshold:network pairs created in step 2.1
+        num_pairs=$( wc -l < $threshold_network_pairs )
+        JOB_STAGE2_STEP2_DEFAULT=$(sbatch <<EOT
+#!/bin/bash
+#SBATCH -J phase2_step2_default
+#SBATCH --array=1-$num_pairs
+#SBATCH --mem-per-cpu=4G
+#SBATCH --cpus-per-task=1
+#SBATCH -o ./logs/phase2_step2_default_%A_%a.out
+network=\$( sed -n \${SLURM_ARRAY_TASK_ID}p $threshold_network_pairs | cut -f 2 )
+threshold=\$( sed -n \${SLURM_ARRAY_TASK_ID}p $threshold_network_pairs | cut -f 1 )
+echo \$network
+echo \$threshold
+singularity exec --no-home -B $(pwd):$(pwd) --pwd $(pwd) $container_python \
+    python3 ./scripts/phase2/dc_generate_rp_statistics.py \
+        --gene_set_path $genes_rpscores_filedir \
+        --master_summary_path ${OUTPUT_DIR}/${TRAITRR}/master_summary_filtered_parsed.csv \
+        --trait ${TRAITRR} \
+        --module_path ${MODULEFILEDIR}/\${network}.txt \
+        --go_path ${OUTPUT_DIR}/${TRAITRR}/GO_summaries/${TRAITRR}/ \
+        --output_path ${OUTPUT_DIR}/${TRAITRR}/results/raw/ \
+        --network \$network \
+        --threshold \$threshold \
+        --num_permutations ${NUM_PERMUTATIONS}
+EOT
+)
+    else
+        while IFS=$'\t' read -r threshold network; do
+            echo "Threshold $threshold, Network: $network"
+            docker run --rm -v $(pwd):$(pwd) -w $(pwd) -u $(id -u):$(id -g) $container_python /bin/bash -c \
+                "python3 ./scripts/phase2/dc_generate_rp_statistics.py \
+                    --gene_set_path $genes_rpscores_filedir \
+                    --master_summary_path ${OUTPUT_DIR}/${TRAITRR}/master_summary_filtered_parsed.csv \
+                    --trait ${TRAITRR} \
+                    --module_path ${MODULEFILEDIR}/${network}.txt \
+                    --go_path ${OUTPUT_DIR}/${TRAITRR}/GO_summaries/${TRAITRR}/ \
+                    --output_path ${OUTPUT_DIR}/${TRAITRR}/results/raw/ \
+                    --network $network \
+                    --threshold $threshold \
+                    --num_permutations $NUM_PERMUTATIONS"
+        done < $threshold_network_pairs
+   fi
+}
+
 print_test_message() {
     echo "
 ########################################
@@ -497,30 +548,14 @@ if [ "$TEST_MODE" = true ]; then
 
             print_default_thresholding_message
 
-            phase2_step1_default
+            #phase2_step1_default
 
-            ## (2) generate statistics for permutation run
-            ## TODO: rewrite in nextflow(?) for parallelism
-            ## (2.1) TODO: prepare file with threshold:network pairs
+            # (2) generate statistics for permutation run
+            # TODO: rewrite in nextflow(?) for parallelism
+            # (2.1) TODO: prepare file with threshold:network pairs
+            #       TODO: the number of genes is from the original summary statistics p-values file
 
-            ## (2.2) generate statistics for permutation run
-            #echo "# STEP 2.2: generating statistics for permutation runs"
-            #genes_rpscores_filedir="./results/RPscores/${TRAITRR}/"
-            #threshold_network_pairs=$( readlink -f ./test/slurm_thresholds_maleWC.txt )
-            #while IFS=$'\t' read -r threshold network; do
-            #    echo "Threshold $threshold, Network: $network"
-            #    docker run --rm -v $(pwd):$(pwd) -w $(pwd) -u $(id -u):$(id -g) $container_python /bin/bash -c \
-            #        "python3 ./scripts/phase2/dc_generate_rp_statistics.py \
-            #            --gene_set_path $genes_rpscores_filedir \
-            #            --master_summary_path ${OUTPUT_DIR}/${TRAITRR}/master_summary_filtered_parsed.csv \
-            #            --trait ${TRAITRR} \
-            #            --module_path ${MODULEFILEDIR}/${network}.txt \
-            #            --go_path ${OUTPUT_DIR}/${TRAITRR}/GO_summaries/${TRAITRR}/ \
-            #            --output_path ${OUTPUT_DIR}/${TRAITRR}/results/raw/ \
-            #            --network $network \
-            #            --threshold $threshold"
-            #done < $threshold_network_pairs
-            #echo "done"
+            phase2_step2_default
 
             ## (3) summarize statistics
             #echo "# STEP 2.3: summarizing statistics"
@@ -646,6 +681,7 @@ if [ "$TEST_MODE" = true ]; then
             # (5) Generate statistics for random permutation runs
             echo "# STEP 5: generate statistics for random permutations"
             # (5.1) TODO: prepare file with bonferroni p-value:network pairs
+            #       TODO: pvalues are fixed at [0.25, 0.2, 0.15, 0.1, 0.05, 0.01, 0.005, 0.001, 0.00005]
             threshold_network_pairs_alternate=$( readlink -f ./test/slurm_thresholds_maleWC_alternate.txt )
             while IFS=$'\t' read -r threshold network; do
                 echo "Threshold $threshold, Network: $network"
@@ -698,6 +734,7 @@ if [ "$TEST_MODE" = true ]; then
         fi
         print_phase_completion 2
     fi
+    # TODO: reverse the ranks of the original p-values SS --> run OR part of stage 1 --> filter for sig modules
 else
     echo "FISHENT CURRENTLY ONLY SUPPORTS the --test FLAG"
 fi
