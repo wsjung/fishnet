@@ -64,11 +64,18 @@ NXF_CONFIG_DEFAULT_DOCKER="./conf/fishnet.config"
 NXF_CONFIG_DEFAULT_SINGULARITY="./conf/fishnet_slurm.config"
 NXF_CONFIG="$NXF_CONFIG_DEFAULT_DOCKER"
 nxf_config_provided=false
+OUTPUT_DIR=$( readlink -f "./results/" )
+DATADIR="${OUTPUT_DIR}/data/"
+MODULEDIR="${DATADIR}/modules/"
+GENECOLNAME="Genes"
+PVALCOLNAME="p_vals"
+BONFERRONI_ALPHA=0.05 # for phase 1 nextflow scripts
 
 # parameters
 FDR_THRESHOLD=0.05
 PERCENTILE_THRESHOLD=0.99
-
+NUM_PERMUTATIONS=10
+TRAITPATH="NONE"
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -468,15 +475,36 @@ EOT
     fi
 }
 
+create_tmp_threshold_network_pairs_default() {
+    # 1. take 25% of number of genes form original p-values input file
+    #pct_25=$( bc <<< "scale=2; 0.25 * $NUMTESTS" )
+    #rounded_25=$( printf "%.0f" "$pct_25" )
+    rounded_25=$(( (25 * NUMTESTS + 50) / 100 ))
+    # 2. range 10..{1} take nearest multiple of 10
+    max_threshold=$(( rounded_25 - (rounded_25 % 10) ))
+    thresholds=()
+    for (( i=10; i<=max_threshold; i+=10 )); do
+        thresholds+=( "$i" )
+    done
+
+    modules=( $( ls ./test/ker_based/*.txt ) )
+    for f in "${modules[@]}"; do
+        base="$(basename "$f" .txt )"
+        for t in "${thresholds[@]}"; do
+            echo -e "${t}\t${base}"
+        done
+    done
+}
+
 phase2_step2_default() {
 
     # (2.2) generate statistics for permutation run
     echo "# STEP 2.2: generating statistics for permutation runs"
     genes_rpscores_filedir="./results/RPscores/${TRAITRR}/"
-    threshold_network_pairs=$( readlink -f ./test/slurm_thresholds_maleWC.txt )
+    tmpfile=$(mktemp --tmpdir="$(pwd)/tmp")
+    create_tmp_threshold_network_pairs_default > $tmpfile
     if [ "$SINGULARITY" = true ]; then
-        # TODO: reference the threshold:network pairs created in step 2.1
-        num_pairs=$( wc -l < $threshold_network_pairs )
+        num_pairs=$( wc -l < $tmpfile )
         JOB_STAGE2_STEP2_DEFAULT=$(sbatch --dependency=afterok:"$JOB_STAGE2_STEP1_DEFAULT_ID" <<EOT
 #!/bin/bash
 #SBATCH -J phase2_step2_default
@@ -484,8 +512,8 @@ phase2_step2_default() {
 #SBATCH --mem-per-cpu=4G
 #SBATCH --cpus-per-task=1
 #SBATCH -o ./logs/phase2_step2_default_%A_%a.out
-network=\$( sed -n \${SLURM_ARRAY_TASK_ID}p $threshold_network_pairs | cut -f 2 )
-threshold=\$( sed -n \${SLURM_ARRAY_TASK_ID}p $threshold_network_pairs | cut -f 1 )
+network=\$( sed -n \${SLURM_ARRAY_TASK_ID}p $tmpfile | cut -f 2 )
+threshold=\$( sed -n \${SLURM_ARRAY_TASK_ID}p $tmpfile | cut -f 1 )
 echo \$network
 echo \$threshold
 singularity exec --no-home -B $(pwd):$(pwd) --pwd $(pwd) $container_python \
@@ -501,6 +529,7 @@ singularity exec --no-home -B $(pwd):$(pwd) --pwd $(pwd) $container_python \
         --num_permutations ${NUM_PERMUTATIONS}
 EOT
 )
+        JOB_STAGE2_STEP2_DEFAULT_ID=$(echo "$JOB_STAGE2_STEP2_DEFAULT" | awk '{print $4}')
     else
         while IFS=$'\t' read -r threshold network; do
             echo "Threshold $threshold, Network: $network"
@@ -515,8 +544,9 @@ EOT
                     --network $network \
                     --threshold $threshold \
                     --num_permutations $NUM_PERMUTATIONS"
-        done < $threshold_network_pairs
+        done < $tmpfile
    fi
+   #rm -rf $tmpfile
 }
 
 phase2_step3_default() {
@@ -867,9 +897,6 @@ phase2_step5_alternate() {
 
     # (5) Generate statistics for random permutation runs
     echo "# STEP 5: generate statistics for random permutations"
-    # (5.1) TODO: prepare file with bonferroni p-value:network pairs
-    #       TODO: pvalues are fixed at [0.25, 0.2, 0.15, 0.1, 0.05, 0.01, 0.005, 0.001, 0.00005]
-    #threshold_network_pairs_alternate=$( readlink -f ./test/slurm_thresholds_maleWC_alternate.txt )
     tmpfile=$(mktemp --tmpdir="$(pwd)/tmp")
     create_tmp_threshold_network_pairs_alternate > $tmpfile
     if [ "$SINGULARITY" = true ]; then
