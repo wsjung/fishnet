@@ -28,12 +28,15 @@ Usage: fishnet.sh [options]
     --singularity
         Configures containers to run using singularity
         Default: false (runs containers using docker)
-    --nxf_config <path/to/nxf.config>
+    --nxf-config <path/to/nxf.config>
         Specify a custom nextflow config to use
         Default: ./conf/fishnet.config using docker, ./conf/fishnet_slurm.config using singularity on SLURM
-    --FDR_threshold <float>
-        Specify a custom FDR threshold
+    --FDR-threshold <float>
+        Specify a custom FDR threshold cutoff
         Default: 0.05
+    --percentile-threshold <float>
+        Specify a custom percentile threshold cutoff
+        Default: 0.99
 EOF
 }
 
@@ -52,6 +55,7 @@ nxf_config_provided=false
 
 # parameters
 FDR_THRESHOLD=0.05
+PERCENTILE_THRESHOLD=0.99
 
 
 while [[ $# -gt 0 ]]; do
@@ -81,24 +85,34 @@ while [[ $# -gt 0 ]]; do
             CONTAINER_RUNTIME="SINGULARITY"
             shift
             ;;
-        --nxf_config)
+        --nxf-config)
             # make sure we have a value and not another flag
             if [[ -n "$2" && ! "$2" =~ ^- ]]; then
                 NXF_CONFIG="$2"
                 nxf_config_provided=true
                 shift 2
             else
-                echo "ERROR: --nxf_config requires a path argument."
+                echo "ERROR: --nxf-config requires a path argument."
                 exit 1
             fi
             ;;
-        --FDR_threshold)
+        --FDR-threshold)
             # make sure we have a value and not another flag
             if [[ -n "$2" && ! "$2" =~ ^- ]]; then
                 FDR_THRESHOLD="$2"
                 shift 2
             else
-                echo "ERROR: --FDR_threshold requires a float argument."
+                echo "ERROR: --FDR-threshold requires a float argument."
+                exit 1
+            fi
+            ;;
+        --percentile-threshold)
+            # make sure we have a value and not another flag
+            if [[ -n "$2" && ! "$2" =~ ^- ]]; then
+                PERCENTILE_THRESHOLD="$2"
+                shift 2
+            else
+                echo "ERROR: --percentile-threshold requires a float argument."
                 exit 1
             fi
             ;;
@@ -503,7 +517,7 @@ phase2_step4_default() {
         tmpfile=$(mktemp --tmpdir="$(pwd)/tmp")
         ls ${MODULEFILEDIR} > $tmpfile
         num_networks=$( wc -l < $tmpfile)
-        JOB_STAGE2_STEP4_DEFAULT=$(sbatch --dependency=afterok:"$JOB_STAGE2_STEP2_DEFAULT_ID" <<EOT
+        JOB_STAGE2_STEP4_DEFAULT=$(sbatch --dependency=afterok:"$JOB_STAGE2_STEP3_DEFAULT_ID" <<EOT
 #!/bin/bash
 #SBATCH -J phase2_step4_default
 #SBATCH --array=1-$num_networks
