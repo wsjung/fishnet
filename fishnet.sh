@@ -37,6 +37,18 @@ Usage: fishnet.sh [options]
     --percentile-threshold <float>
         Specify a custom percentile threshold cutoff
         Default: 0.99
+    --num-permutations <integer>
+        Configures the number of permutations
+        Default: 10
+    --trait <path/to/input/file.csv>
+        Path to the input summary statistics file.
+        File must be a CSV file with colnames "Genes" and "p_vals".
+        Filename must not include any '_', '-', or '.' characters.
+        (Refer to ./test/maleWC/maleWC.csv for an example)
+    --modules <path/to/modules/directory/>
+        Path to directory containing network modules.
+        Network module files must be tab-delimited .txt files
+        (Refer to ./test/ker_based/ for examples)
 EOF
 }
 
@@ -116,6 +128,36 @@ while [[ $# -gt 0 ]]; do
                 exit 1
             fi
             ;;
+        --trait)
+            # make sure we have a value and not another flag
+            if [[ -n "$2" && ! "$2" =~ ^- ]]; then
+                TRAITPATH="$2"
+                shift 2
+            else
+                echo "ERROR: --trait requires a string path argument."
+                exit 1
+            fi
+            ;;
+        --modules)
+            # make sure we have a value and not another flag
+            if [[ -n "$2" && ! "$2" =~ ^- ]]; then
+                INPUTMODULEDIR="$2"
+                shift 2
+            else
+                echo "ERROR: --modules requires a string path argument."
+                exit 1
+            fi
+            ;;
+        --num-permutations)
+            # make sure we have a value and not another flag
+            if [[ -n "$2" && ! "$2" =~ ^- ]]; then
+                NUM_PERMUTATIONS="$2"
+                shift 2
+            else
+                echo "ERROR: --num-permutations requires an integer argument."
+                exit 1
+            fi
+            ;;
         *)
             echo "ERROR: Unknown option $1"
             usage
@@ -147,34 +189,52 @@ else
     docker --version
 fi
 echo " - nextflow config: $NXF_CONFIG"
-
 ### set test parameters ###
 if [ "$TEST_MODE" = true ]; then
-
-    TRAIT="maleWC"
-    TRAITRR="${TRAIT}RR"
-    NUM_PERMUTATIONS="10"
-    PVALFILEDIR=$( readlink -f ./test/${TRAIT} )
-    PVALFILENAME=${PVALFILEDIR}/0-${TRAIT}.csv
-    PVALFILENAMERR=$( readlink -f ./test/${TRAITRR}/${TRAITRR}.csv )
-    MODULE_ALGO="ker_based"
-    MODULEFILEDIR=$( readlink -f ./test/${MODULE_ALGO}/ )
-    NUMTESTS=$(( $(wc -l < "$PVALFILENAME") - 1 ))
-    GENECOLNAME="Genes"
-    PVALCOLNAME="p_vals"
-    BONFERRONI_ALPHA="0.05"
-    OUTPUT_DIR=./results/
-    FDR_THRESHOLD=0.05
-    PERCENTILE_THRESHOLD=0.99 # TODO: add as input argument
+    TRAITPATH="./test/maleWC/maleWC.csv"
+    INPUTMODULEDIR="./test/ker_based/"
+else
+    # check for required input parameters
+    # input trait file
+    if [ ! -f "$TRAITPATH" ]; then
+        echo "--trait $TRAITPATH FILE NOT FOUND"
+        exit 1
+    fi
+    # input modules directory
+    if [ ! -d "$INPUTMODULEDIR" ]; then
+        echo "--modules $INPUTMODULEDIR DIRECTORY NOT FOUND"
+        exit 1
+    fi
 fi
+
+# process input pval file #
+filebasename=$( basename $TRAITPATH )
+TRAIT="${filebasename%.*}"
+TRAITRR="${TRAIT}RR"
+
+# copy over input pval file
+PVALFILEDIR="${DATADIR}/${TRAIT}"
+PVALFILEDIRRR="${DATADIR}/${TRAITRR}"
+mkdir -p $PVALFILEDIR $PVALFILEDIRRR
+PVALFILEPATH="${PVALFILEDIR}/0-${TRAIT}.csv"
+PVALFILEPATHRR="${PVALFILEDIRRR}/${TRAITRR}.csv"
+cp $TRAITPATH $PVALFILEPATH
+NUMTESTS=$(( $(wc -l < "$PVALFILEPATH") - 1 ))
+
+# copy over input modules files
+mkdir -p $MODULEDIR
+cp -r $INPUTMODULEDIR $MODULEDIR
+MODULE_ALGO=$( basename $INPUTMODULEDIR )
+MODULEFILEDIR=${MODULEDIR}/${MODULE_ALGO}
+
 
 ### export parameters ###
 export TRAIT
 export TRAITRR
 export NUM_PERMUTATIONS
 export PVALFILEDIR
-export PVALFILENAME
-export PVALFILENAMERR
+export PVALFILEPATH
+export PVALFILEPATHRR
 export MODULE_ALGO
 export MODULEFILEDIR
 export NUMTESTS
@@ -243,14 +303,13 @@ phase1_step2() {
 #SBATCH -o ./logs/phase1_step2_%J.out
 singularity exec --no-home -B $(pwd):$(pwd) --pwd $(pwd) $container_python \
 python3 ./scripts/phase1/generate_uniform_pvals.py \
-    --genes_filepath $PVALFILENAME
+    --genes_filepath $PVALFILEPATH
 EOT
     else
         docker run --rm -v $(pwd):$(pwd) -w $(pwd) -u $(id -u):$(id -g) $container_python  /bin/bash -c \
             "python3 ./scripts/phase1/generate_uniform_pvals.py \
-            --genes_filepath $PVALFILENAME"
+            --genes_filepath $PVALFILEPATH"
     fi
-    echo "done" 
 
 }
 
@@ -288,7 +347,6 @@ EOT
                 --identifier ${TRAITRR} \
                 --output $OUTPUT_DIR"
     fi
-    echo "done"
 
 }
 
@@ -350,7 +408,6 @@ EOT
         }
         organize_nextflow_results $TRAIT $OUTPUT_DIR
     fi
-    echo "done"
 }
 
 phase2_step0() {
@@ -569,7 +626,7 @@ phase2_step1_alternate() {
 #SBATCH -o ./logs/phase2_step1_alternate_%J.out
 singularity exec --no-home -B $(pwd):$(pwd) --pwd $(pwd) $container_python \
     python3 ./scripts/phase2/dc_fishnet_background_genes.py \
-        --genes_filepath $PVALFILENAMERR \
+        --genes_filepath $PVALFILEPATHRR \
         --module_filepath $MODULEFILEDIR \
         --output_filepath ${OUTPUT_DIR}/${TRAIT}/
 # (1.1) copy background genes to permutation directory
@@ -580,7 +637,7 @@ EOT
     else
         docker run --rm -v $(pwd):$(pwd) -w $(pwd) -u $(id -u):$(id -g) $container_python /bin/bash -c \
             "python3 ./scripts/phase2/dc_fishnet_background_genes.py \
-                --genes_filepath $PVALFILENAMERR \
+                --genes_filepath $PVALFILEPATHRR \
                 --module_filepath $MODULEFILEDIR \
                 --output_filepath ${OUTPUT_DIR}/${TRAIT}/"
         # (1.1) copy background genes to permutation directory
@@ -603,7 +660,7 @@ phase2_step2_original_alternate() {
 #SBATCH -o ./logs/phase2_step2_original_alternate_%J.out
 singularity exec --no-home -B $(pwd):$(pwd) --pwd $(pwd) $container_python \
     python3 ./scripts/phase2/dc_fishnet_module_genes.py \
-        --genes_filepath $PVALFILENAMERR \
+        --genes_filepath $PVALFILEPATHRR \
         --module_filepath $MODULEFILEDIR \
         --master_summary_path ${OUTPUT_DIR}/${TRAIT}/ \
         --study $TRAIT
@@ -613,7 +670,7 @@ EOT
     else
         docker run --rm -v $(pwd):$(pwd) -w $(pwd) -u $(id -u):$(id -g) $container_python /bin/bash -c \
             "python3 ./scripts/phase2/dc_fishnet_module_genes.py \
-                --genes_filepath $PVALFILENAMERR \
+                --genes_filepath $PVALFILEPATHRR \
                 --module_filepath $MODULEFILEDIR \
                 --master_summary_path ${OUTPUT_DIR}/${TRAIT}/ \
                 --study $TRAIT"
@@ -634,7 +691,7 @@ phase2_step2_permutation_alternate() {
 #SBATCH -o ./logs/phase2_step2_permutation_alternate_%J.out
 singularity exec --no-home -B $(pwd):$(pwd) --pwd $(pwd) $container_python \
     python3 ./scripts/phase2/dc_fishnet_module_genes.py \
-        --genes_filepath $PVALFILENAMERR \
+        --genes_filepath $PVALFILEPATHRR \
         --module_filepath $MODULEFILEDIR \
         --master_summary_path ${OUTPUT_DIR}/${TRAITRR}/ \
         --study $TRAITRR
@@ -644,7 +701,7 @@ EOT
     else
         docker run --rm -v $(pwd):$(pwd) -w $(pwd) -u $(id -u):$(id -g) $container_python /bin/bash -c \
             "python3 ./scripts/phase2/dc_fishnet_module_genes.py \
-                --genes_filepath $PVALFILENAMERR \
+                --genes_filepath $PVALFILEPATHRR \
                 --module_filepath $MODULEFILEDIR \
                 --master_summary_path ${OUTPUT_DIR}/${TRAITRR}/ \
                 --study $TRAITRR"
@@ -1062,11 +1119,6 @@ if [ "$TEST_MODE" = true ]; then
             print_default_thresholding_message
 
             phase2_step1_default
-
-            # (2) generate statistics for permutation run
-            # TODO: rewrite in nextflow(?) for parallelism
-            # (2.1) TODO: prepare file with threshold:network pairs
-            #       TODO: the number of genes is from the original summary statistics p-values file
 
             phase2_step2_default
 

@@ -12,7 +12,7 @@ nextflow run ./scripts/phase1/nextflow/main.nf \
     --moduleFileDir $MODULEFILEDIR \
     --numTests $NUMTESTS \
     --pipeline $TRAIT  \
-    --pvalFileName $PVALFILENAME \
+    --pvalFileName $PVALFILEPATH \
     --geneColName $GENECOLNAME \
     --pvalColName $PVALCOLNAME  \
     --bonferroni_alpha $BONFERRONI_ALPHA \
