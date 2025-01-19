@@ -45,7 +45,7 @@ def generate_rp_statistics(gene_set_path, master_summary_path, trait, module_pat
 
     #iterate through permutation files
     #change this to 5000 after testing the pipeline
-    for index in list(range(1,num_permutations+1)):
+    for index in list(range(1,int(num_permutations)+1)):
         if(index % 100 == 0):
             print(index)
         gene_set_df = pd.read_csv(os.path.join(gene_set_path,f"{index}-{trait}.csv"))
