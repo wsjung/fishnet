@@ -8,3 +8,6 @@ results*/
 *.sbatch
 logs/
 test/maleWCRR
+test_*.sh
+singularity_images
+tmp/

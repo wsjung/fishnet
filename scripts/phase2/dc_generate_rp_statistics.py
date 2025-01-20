@@ -7,7 +7,7 @@ import math
 
 #Usage in generate_rp_statistics.sbatch
 
-def generate_rp_statistics(gene_set_path, master_summary_path, trait, module_path, go_path, output_path, threshold, network ):
+def generate_rp_statistics(gene_set_path, master_summary_path, trait, module_path, go_path, output_path, threshold, network, num_permutations ):
     #print("Started")
     #print(gene_set_path)
     #print(master_summary_path)
@@ -45,7 +45,7 @@ def generate_rp_statistics(gene_set_path, master_summary_path, trait, module_pat
 
     #iterate through permutation files
     #change this to 5000 after testing the pipeline
-    for index in list(range(1,11)):
+    for index in list(range(1,int(num_permutations)+1)):
         if(index % 100 == 0):
             print(index)
         gene_set_df = pd.read_csv(os.path.join(gene_set_path,f"{index}-{trait}.csv"))
@@ -164,6 +164,7 @@ if __name__ == "__main__":
     parser.add_argument('--output_path', '-output_path', help = "directory to store the output")
     parser.add_argument('--threshold', '-threshold', help = "top X genes to look at")
     parser.add_argument('--network', '-network', help = "network type")
+    parser.add_argument('--num_permutations', help='number of permutations')
 
     args = parser.parse_args()
-    generate_rp_statistics(gene_set_path = args.gene_set_path, master_summary_path = args.master_summary_path, trait = args.trait, module_path = args.module_path, go_path = args.go_path, output_path = args.output_path, threshold = args.threshold, network = args.network)
+    generate_rp_statistics(gene_set_path = args.gene_set_path, master_summary_path = args.master_summary_path, trait = args.trait, module_path = args.module_path, go_path = args.go_path, output_path = args.output_path, threshold = args.threshold, network = args.network, num_permutations = args.num_permutations)
