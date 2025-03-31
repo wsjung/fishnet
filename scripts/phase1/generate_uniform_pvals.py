@@ -13,6 +13,8 @@ def dc_rp_genes(genes_filepath):
     # Read the CSV file into a DataFrame
     df = pd.read_csv(genes_filepath)
 
+    np.random.seed(42)
+
     # Check if the required columns exist
     if "Genes" not in df.columns or "p_vals" not in df.columns:
         raise ValueError("The input file must contain 'genes' and 'p_vals' columns.")
