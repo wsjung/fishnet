@@ -306,12 +306,12 @@ EOT
 
 }
 
-phase1_step2() {
+phase1_step3() {
 
     # (2) generate uniform p-values
     echo "# STEP 1.2: generating uniformly distributed p-values"
     if [ "$SINGULARITY" = true ]; then
-        sbatch <<EOT
+        JOB_STAGE1_STEP2=$(sbatch <<EOT
 #!/bin/bash
 #SBATCH -J phase1_step2
 #SBATCH -o ./logs/phase1_step2_%J.out
@@ -319,21 +319,19 @@ singularity exec --no-home -B $(pwd):$(pwd) --pwd $(pwd) $container_python \
 python3 ./scripts/phase1/generate_uniform_pvals.py \
     --genes_filepath $PVALFILEPATH
 EOT
+)
+        JOB_STAGE1_STEP2_ID=$(echo "$JOB_STAGE1_STEP2" | awk '{print $4}')
     else
         docker run --rm -v $(pwd):$(pwd) -w $(pwd) -u $(id -u):$(id -g) $container_python  /bin/bash -c \
             "python3 ./scripts/phase1/generate_uniform_pvals.py \
             --genes_filepath $PVALFILEPATH"
     fi
 
-}
-
-phase1_step3() {
-
     # (3) nextflow random permutation run
     echo "# STEP 1.3: executing Nextflow MEA pipeline on random permutations"
     echo "executing Nextflow MEA pipeline on random permutations"
     if [ "$SINGULARITY" = true ]; then
-        JOB_STAGE1_STEP3=$(sbatch ./scripts/phase1/phase1_step3.sh $(pwd))
+        JOB_STAGE1_STEP3=$(sbatch --dependency=afterok:"$JOB_STAGE1_STEP2_ID" ./scripts/phase1/phase1_step3.sh $(pwd))
         JOB_STAGE1_STEP3_ID=$(echo "$JOB_STAGE1_STEP3" | awk '{print $4}')
     else
         ./scripts/phase1/phase1_step3.sh $(pwd)
@@ -1122,8 +1120,6 @@ if [ "$TEST_MODE" = true ]; then
         print_phase_message 1
 
         phase1_step1
-
-        phase1_step2
 
         phase1_step3
 

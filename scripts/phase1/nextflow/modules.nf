@@ -5,8 +5,9 @@ process RANDOM_PERMUTATION {
     container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
         'https://depot.galaxyproject.org/singularity/mulled-v2-9d836da785124bb367cbe6fbfc00dddd2107a4da:b033d6a4ea3a42a6f5121a82b262800f1219b382-0' :
         'quay.io/biocontainers/mulled-v2-9d836da785124bb367cbe6fbfc00dddd2107a4da:b033d6a4ea3a42a6f5121a82b262800f1219b382-0' }"
+
     label "process_low"
-    publishDir "./results", mode: 'copy'
+    publishDir "./results/", mode: 'copy'
 
     output:
     path("RPscores/${params.trait}/*.csv"), emit: rp_scores
