@@ -221,6 +221,7 @@ fi
 if [ "$CONDA" = true ]; then
     # if conda requested, but user did not specify --conda_env
     if [ "$conda_env_provided" = false ]; then
+        echo "conda env not provided"
         CONDA_ENV="$CONDA_ENV_DEFAULT"
     fi
 fi
@@ -362,12 +363,14 @@ EOT
     fi
 
     # check for conda environment, create if not exist
-    if conda env list | awk '{print $1}' | grep -Fxq "$CONDA_ENV"; then
-        echo "Environment $CONDA_ENV found"
-    else
-        echo "Environment $CONDA_ENV not found...creating"
-        conda env create -f conf/fishnet_conda_environment.yml
-        echo "done"
+    if [ "$CONDA" = true ]; then
+        if conda env list | awk '{print $1}' | grep -Fxq "$CONDA_ENV"; then
+            echo "Environment $CONDA_ENV found"
+        else
+            echo "Environment $CONDA_ENV not found...creating"
+            conda env create -f conf/fishnet_conda_environment.yml
+            echo "done"
+        fi
     fi
 
     export PULL_PYTHON_CONTAINER
