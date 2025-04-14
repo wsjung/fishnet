@@ -79,6 +79,7 @@ MODULEDIR="${DATADIR}/modules/"
 GENECOLNAME="Genes"
 PVALCOLNAME="p_vals"
 BONFERRONI_ALPHA=0.05 # for phase 1 nextflow scripts
+NUM_MODULE_FILES=0
 
 # parameters
 FDR_THRESHOLD=0.05
@@ -271,6 +272,10 @@ PVALFILEPATHRR="${PVALFILEDIRRR}/${TRAITRR}.csv"
 cp $TRAITPATH $PVALFILEPATH
 NUMTESTS=$(( $(wc -l < "$PVALFILEPATH") - 1 ))
 
+# record number of module files
+NUM_MODULE_FILES=$( ls -1 ${INPUTMODULEDIR}/*.txt 2>/dev/null | wc -l)
+echo "> FOUND ${NUM_MODULE_FILES} module files"
+
 # copy over input modules files
 mkdir -p $MODULEDIR
 cp -r $INPUTMODULEDIR $MODULEDIR
@@ -282,6 +287,7 @@ MODULEFILEDIR=${MODULEDIR}/${MODULE_ALGO}
 export TRAIT
 export TRAITRR
 export NUM_PERMUTATIONS
+export NUM_MODULE_FILES
 export PVALFILEDIR
 export PVALFILEPATH
 export PVALFILEPATHRR
@@ -464,9 +470,13 @@ EOT
     # (4.2)
     summaries_path_permutation="${OUTPUT_DIR}/masterSummaries_RP/summaries/"
     if [ "$SINGULARITY" = true ]; then
+        # dynamically set memory allocation based on number of modules and number of permutations
+        # currently: 1 MB * N(modules) * N(permutations)
+        MEM_ALLOCATION=$(( $NUM_MODULE_FILES * $NUM_PERMUTATIONS ))
         JOB_STAGE1_STEP4_PERMUTATION=$(sbatch --dependency=afterok:"$JOB_STAGE1_STEP3_ID" <<EOT
 #!/bin/bash
 #SBATCH -J phase1_step4_permutation
+#SBATCH --mem ${MEM_ALLOCATION}M
 #SBATCH -o ./logs/phase1_step4_permutation_%J.out
 singularity exec --no-home -B $(pwd):$(pwd) --pwd $(pwd) $container_python \
 python3 ./scripts/phase1/compile_results.py \
@@ -1262,7 +1272,7 @@ nextflow_cleanup() {
 ##############################
 ### TEST CONFIG ENTRYPOINT ###
 ##############################
-if [ "$TEST_MODE" = true ]; then
+#if [ "$TEST_MODE" = true ]; then
 
     print_test_message
 
@@ -1343,7 +1353,7 @@ if [ "$TEST_MODE" = true ]; then
         fi
     fi
     # TODO: reverse the ranks of the original p-values SS --> run OR part of stage 1 --> filter for sig modules
-else
-    echo "FISHENT CURRENTLY ONLY SUPPORTS the --test FLAG"
-fi
+#else
+#    echo "FISHENT CURRENTLY ONLY SUPPORTS the --test FLAG"
+#fi
 echo "### FISHNET COMPLETE ###"
