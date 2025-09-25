@@ -5,7 +5,7 @@ GO_summaries
 masterSummaries
 results*/
 *.sif
-*.sbatch
+/*.sbatch
 logs*
 test*.sh
 singularity_images
