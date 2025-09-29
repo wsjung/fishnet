@@ -55,7 +55,7 @@ Usage: fishnet.sh [options]
         (e.g. --study data/pvals/exampleRR/)
     --num-permutations <integer>
         Configures the number of permutations
-        Default: 10
+        Default: 200
 EOF
 }
 
@@ -82,7 +82,7 @@ BONFERRONI_ALPHA=0.05 # for phase 1 nextflow scripts
 
 FDR_THRESHOLD=0.05
 PERCENTILE_THRESHOLD=99
-NUM_PERMUTATIONS=10
+NUM_PERMUTATIONS=200
 STUDY_PATH="NONE"
 STUDY_RANDOM_PATH="NONE"
 STUDY="NONE"
