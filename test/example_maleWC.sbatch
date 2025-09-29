@@ -14,12 +14,12 @@ export NXF_CONDA_CACHEDIR=""
 export TMPDIR=""
 export NXF_TEMP=""
 
-study="./data/pvals/exampleOR/"
-study_random="./data/pvals/exampleRR/"
-modules="./data/modules/ker_based/"
-num_permutations=500
+study="./test/exampleOR/"
+study_random="./test/exampleRR/"
+modules="./test/ker_based/"
+num_permutations=200
 
-./fishnet_multi.sh \
+./fishnet.sh \
     --study $study \
     --study-random $study_random \
     --modules $modules \

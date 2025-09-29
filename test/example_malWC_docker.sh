@@ -1,7 +1,7 @@
 study="./data/pvals/exampleOR/"
 study_random="./data/pvals/exampleRR/"
 modules="./data/modules/ker_based/"
-num_permutations=500
+num_permutations=200
 
 ./fishnet_multi.sh \
     --study $study \
